@@ -33,7 +33,8 @@ classdef  virtualListener < handle
 
     properties (Access = private)
         tempBuffer
-
+        audioLength
+        sampleRate
     end
 
     events
@@ -42,10 +43,12 @@ classdef  virtualListener < handle
 
     methods
 
-        function obj = virtualListener(audio)
+        function obj = virtualListener(audio, audioLength, sampleRate)
             %mirtoolboxWizard
             % Construct MIRToolbox object
             obj.a = audio;
+            obj.audioLength = audioLength;
+            obj.sampleRate = sampleRate;
             addlistener(obj,'updateJudgement',@newJudgement);
         end
 
@@ -57,7 +60,7 @@ classdef  virtualListener < handle
 
                 src.a = audio;
 
-            elseif size(src.a,1) <= 44100 * 15
+            elseif size(src.a,1) <= 44100 * src.audioLength % If the audio is less
 
                 src.a = cat(1,src.a,audio);
 
