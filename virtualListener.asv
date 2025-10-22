@@ -24,9 +24,9 @@ classdef  virtualListener < handle
 
 
     properties (Access = public)
-        pulseClarity
-        tempo
-        key
+        novelty
+        roughness
+        rms_mir
         a % MIRToolbox audio object
 
     end
@@ -105,25 +105,20 @@ classdef  virtualListener < handle
                 % Smooth [pulseClarity,A1] and then append the last value
                 % in A1
 
-                A1 = movingAverageFilter(src,cat(1,src.pulseClarity,A1));
-                src.pulseClarity = cat(1,src.pulseClarity,A1(end));
+                A1 = movingAverageFilter(src,cat(1,src.novelty,A1));
+                src.novelty = cat(1,src.novelty,A1(end));
 
                 A2 = get(newValue2,"Data"); A2 = cellReveal(src,A2);
-                A2 = movingAverageFilter(src,cat(1,src.tempo,A2));
-                src.tempo = cat(1,src.tempo,A2(end));
+                A2 = movingAverageFilter(src,cat(1,src.roughness,A2));
+                src.roughness = cat(1,src.roughness,A2(end));
                 
-                tempKey = unpackKey(src,newValue3);
+                rms_mir = mirgetdata(newValue3);
               
-                if isempty(src.key)
+               
 
-                    src.key = tempKey;
-                   
-                else
-
-                    A3 = movingAverageFilter(src,[src.key.value; ...
-                        tempKey.value(:)]);
-                    src.key.value = cat(1,src.key.value,A3(end));
-                    src.key.note = cat(1,src.key.note,tempKey.note(end));
+                A3 = movingAverageFilter(src,[src.rms_mir; ...
+                    tempKey]);
+                src.rms_mir = cat(1,src.rms_mir,A3(end));
 
                 end
                
@@ -134,24 +129,20 @@ classdef  virtualListener < handle
 
         end
 
-        function [pulseClarity,tempo,key] = gatherJudgements(src,~)
+        function [novelty,roughness,rms_mir] = gatherJudgements(src,~)
 
             try
 
                 tempMIRObject = miraudio(sum(src.a,2));
                 novelty = mirnovelty(tempMIRObject);
-                tempo = mirtempo(tempMIRObject);
-                [tempkey1Out,~,tempkey2Out] = mirkey(tempMIRObject);
-               
-                key.key1Out = get(tempkey1Out,'Data');
-                key.key2Out = get(tempkey2Out,'Data');
+                roughness = mirroughness(tempMIRObject);
+                rms_mir = mirrms(tempMIRObject);
 
             catch 
 
-                pulseClarity = NaN;
-                tempo = NaN;
-                key.key1Out = {}; 
-                key.Key2Out = {};
+                novelty = NaN;
+                roughness = NaN;
+                rms_mir = NaN;
 
             end
 
@@ -181,35 +172,16 @@ classdef  virtualListener < handle
                     'F#' 'G', 'G#' 'A' 'A#' 'B'};
             end
 
-            if ~isempty(src.key)
+            if ~isempty(src.rms_mir)
 
                 tempNoteValue = cellReveal(src,keyStruct.key1Out);
-                keyOut.value = cat(1,[src.key.value],tempNoteValue);
+                keyOut.value = cat(1,[src.rms_mir.value],tempNoteValue);
 
                 tempMajMinVec = cellReveal(src,keyStruct.key2Out);
 
                 % index note
                 tempNote = noteList(round(tempNoteValue));
 
-                % determine if major or minor key
-                % 1 = major; 0 = minor
-                majorORminor = (tempMajMinVec(tempNoteValue,:,:,1) > ...
-                    tempMajMinVec(tempNoteValue,:,:,2));
-
-                switch majorORminor
-
-                    case true
-
-                        % keyOut.note = cat(2,[src.key.note],strcat(tempNote,'M'));
-
-                        keyOut.note = cat(1,[src.key.note],strcat(tempNote,'M'));
-                        
-
-                    case false
-
-                        keyOut.note = cat(1,[src.key.note],...
-                            strcat(tempNote,'m'));
-                end
                 
 
             else
