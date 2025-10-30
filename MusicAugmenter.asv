@@ -42,28 +42,49 @@ classdef MusicAugmenter
             % This will be run fairly frequently to step the audio outuput stream. 
             % It will apply everything and return the augmented
             % audio signal
-
+            
 
             % Append the incoming audio to the audio buffer that is used to
             % generate resampling audio
             
-            % Assume we need 2 rows if we have 1 row in audio
-            if size(audio, 1) < size(audio, 2)
+            % Put audio row-wise
+            audio_rows, audio_columns = size(audio);
+            if audio_rows < audio_columns
                 audio = audio';
             end
-            if size(audio, 2) ~= size(src.a, 2)
+            
+            audio_rows, audio_columns = size(audio);
+
+            if audio_rows < src.samplesPerFrame
+                disp('size of audio input is less than frame size!')
+                padding = zeros([src.samplesPerFrame - audio_rows,1]);
+                audio = [padding; audio]; % Pad the audio with zeros
+            elseif audiorows > src.samplesPerFrame
+                disp('size of audio input is greater than frame size!')
+                            
+            end
+            
+
+
+            % if input audio is not stereo and audio buffer is stereo,
+            % make input audio stereo
+            if size(audio, 2) == 1 && size(src.a, 2) == 2
                 audio = [audio,audio];
             end
+
             appended_audio = cat(1, src.a, audio);
             
             if size(appended_audio, 1) > src.sampleRate * src.maxAudioLength
                 src.a = appended_audio(...
-                    end-src.sampleRate*src.maxAudioLength:end);
+                    1+max(size(audio)):end);
             else
                 src.a = appended_audio;
             end
             
-            
+            if (src.mirParams.novelty > 0.5) && (randi(10) == 1)
+                src.resample(64);
+            end
+            % add noise
             audio = src.addNoise(audio);
             audio_out = audio;
             % soundsc(audio, src.sampleRate)
@@ -96,14 +117,14 @@ classdef MusicAugmenter
            
 
                 % tempMarkers = rand(2)/src.mirParams.inharmonicity*src.samplesPerFrame;
-                resampleIndices = sort(randi(n_resamples,2));
-                resampleIndices = resampleIndices(:,1);
-                randomness = rand([1,2]) * src.mirParams.inharmonicity;
-                resampleIndices = sort(round(randomness.*resampleIndices));
+                resampleIndex = sort(randi(n_resamples,2));
+                resampleIndex = resampleIndex(:,1);
+                randomness = rand(1) * src.mirParams.inharmonicity;
+                resampleIndices = sort(ceil(randomness.*resampleIndex));
                 
-                audioIndices = [tempMusicMarker(resampleIndices(1,1)),...
-                    tempMusicMarker(resampleIndices(1,2))
-                resampledAudio = src.a();
+                audioIndices = sort([tempMusicMarker(resampleIndices(1)),...
+                    tempMusicMarker(resampleIndices(2))]);
+                resampledAudio = src.a(audioIndices(1):audioIndices(2));
                 soundsc(resampledAudio,src.sampleRate)
                
            end

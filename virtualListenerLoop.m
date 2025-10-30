@@ -25,11 +25,12 @@ if contains(input_info(2).Name, "Windows DirectSound")
 end
 
 
-mirParams = struct('roughness', 10.0, 'novelty', 0.8, 'inharmonicity', 0.4);
+mirParams = mirStruct('roughness', 10.0, 'novelty', 0.8, 'inharmonicity', 0.4);
 augment = MusicAugmenter(myAudio(sr*10:sr*12),sr,2,samplesPerFrame, mirParams);
 
+myFig = figure;
+
 while true
-    aInt = randi(10);
     someAudio = audioReader.step;
     moreAudio = augment.step(someAudio);
     audio_out.step(moreAudio);

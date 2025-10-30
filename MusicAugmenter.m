@@ -42,18 +42,38 @@ classdef MusicAugmenter
             % This will be run fairly frequently to step the audio outuput stream. 
             % It will apply everything and return the augmented
             % audio signal
-
+            
 
             % Append the incoming audio to the audio buffer that is used to
             % generate resampling audio
             
-            % Assume we need 2 rows if we have 1 row in audio
-            if size(audio, 1) < size(audio, 2)
+            % Put audio row-wise
+            audio_rows, audio_columns = size(audio);
+            if audio_rows < audio_columns
                 audio = audio';
             end
-            if size(audio, 2) ~= size(src.a, 2)
+            
+            audio_rows, audio_columns = size(audio);
+
+            % Ensure the size of the audio input is the same as
+            % samplesPerFrame
+            if audio_rows < src.samplesPerFrame
+                disp('size of audio input is less than frame size!')
+                padding = zeros([src.samplesPerFrame - audio_rows,1]);
+                audio = [padding; audio]; % Pad the audio with zeros
+            elseif audiorows > src.samplesPerFrame
+                disp('size of audio input is greater than frame size!')
+                audio = audio(1:src.samplesPerFrame);            
+            end
+            
+
+
+            % if input audio is not stereo and audio buffer is stereo,
+            % make input audio stereo
+            if size(audio, 2) == 1 && size(src.a, 2) == 2
                 audio = [audio,audio];
             end
+
             appended_audio = cat(1, src.a, audio);
             
             if size(appended_audio, 1) > src.sampleRate * src.maxAudioLength
@@ -128,6 +148,9 @@ classdef MusicAugmenter
 
         function src = updateMIRParams(src, mirParams)
         % update the MIRParams object
+            if ~isa(mirParams,'mirStruct')
+                raise('mirParams is not type mirStruct!')
+            end
             src.mirParams = mirParams; % Update the MIR parameters
         end
 
