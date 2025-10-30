@@ -84,18 +84,27 @@ classdef MusicAugmenter
         end
 
 
-        function src = resample(src)
-           % Divide audio into 64 parts
-           if ~isempty(src.a) 
-               tempMusicMarker = linspace(1,src.a, ...
-                    64);
+        function src = resample(src, n_resamples)
+            % Divide audio into 64 parts
+            if isempty(n_resamples)
+            n_resamples = 64;
+            end
+            if ~isempty(src.a) 
+                tempMusicMarker = linspace(1, max(size(src.a)), ...
+                    n_resamples);
+               
            
 
-                tempMarkers = rand(2)/src.mirParams.inharmonicity*src.samplesPerFrame;
-                tempIndices = sort(round(tempMarkers));
-                % Get the part of the audio track between hexagram 1
-                % and hexagram 2
-                resampledAudio = src.a(tempIndices(1):tempIndices(2));
+                % tempMarkers = rand(2)/src.mirParams.inharmonicity*src.samplesPerFrame;
+                resampleIndices = sort(randi(n_resamples,2));
+                resampleIndices = resampleIndices(:,1);
+                randomness = rand([1,2]) * src.mirParams.inharmonicity;
+                resampleIndices = sort(round(randomness.*resampleIndices));
+                
+                audioIndices = [tempMusicMarker(resampleIndices(1,1)),...
+                    tempMusicMarker(resampleIndices(1,2))
+                resampledAudio = src.a();
+                soundsc(resampledAudio,src.sampleRate)
                
            end
             src.midiMap = linspace(tempMusicMarker(1), ...

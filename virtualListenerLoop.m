@@ -26,9 +26,10 @@ end
 
 
 mirParams = struct('roughness', 10.0, 'novelty', 0.8, 'inharmonicity', 0.4);
-augment = MusicAugmenter(myAudio(sr*10:sr*20),sr,10,samplesPerFrame, mirParams);
+augment = MusicAugmenter(myAudio(sr*10:sr*12),sr,2,samplesPerFrame, mirParams);
 
 while true
+    aInt = randi(10);
     someAudio = audioReader.step;
     moreAudio = augment.step(someAudio);
     audio_out.step(moreAudio);

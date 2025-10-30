@@ -58,12 +58,15 @@ classdef MusicAugmenter
             
             if size(appended_audio, 1) > src.sampleRate * src.maxAudioLength
                 src.a = appended_audio(...
-                    end-src.sampleRate*src.maxAudioLength:end);
+                    1+max(size(audio)):end);
             else
                 src.a = appended_audio;
             end
             
-            
+            if (src.mirParams.novelty > 0.5) && (randi(10) == 1)
+                src.resample(64);
+            end
+            % add noise
             audio = src.addNoise(audio);
             audio_out = audio;
             % soundsc(audio, src.sampleRate)
@@ -84,18 +87,27 @@ classdef MusicAugmenter
         end
 
 
-        function src = resample(src)
-           % Divide audio into 64 parts
-           if ~isempty(src.a) 
-               tempMusicMarker = linspace(1,src.a, ...
-                    64);
+        function src = resample(src, n_resamples)
+            % Divide audio into 64 parts
+            if isempty(n_resamples)
+            n_resamples = 64;
+            end
+            if ~isempty(src.a) 
+                tempMusicMarker = linspace(1, max(size(src.a)), ...
+                    n_resamples);
+               
            
 
-                tempMarkers = rand(2)/src.mirParams.inharmonicity*src.samplesPerFrame;
-                tempIndices = sort(round(tempMarkers));
-                % Get the part of the audio track between hexagram 1
-                % and hexagram 2
-                resampledAudio = src.a(tempIndices(1):tempIndices(2));
+                % tempMarkers = rand(2)/src.mirParams.inharmonicity*src.samplesPerFrame;
+                resampleIndex = sort(randi(n_resamples,2));
+                resampleIndex = resampleIndex(:,1);
+                randomness = rand(1) * src.mirParams.inharmonicity;
+                resampleIndices = sort(ceil(randomness.*resampleIndex));
+                
+                audioIndices = sort([tempMusicMarker(resampleIndices(1)),...
+                    tempMusicMarker(resampleIndices(2))]);
+                resampledAudio = src.a(audioIndices(1):audioIndices(2));
+                soundsc(resampledAudio,src.sampleRate)
                
            end
             src.midiMap = linspace(tempMusicMarker(1), ...
