@@ -13,7 +13,7 @@ samplesPerFrame = 1024;
 info = audiodevinfo;
 input_info = info.input;
 output_info = info.output;
-myAudio = audioread("being a girl [2044987124].mp3", [1,]);
+myAudio = audioread("being a girl [2044987124].mp3", [1,10*sr]);
 
 % hardcoded fo today
 % Setup audio output

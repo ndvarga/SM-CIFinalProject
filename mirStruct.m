@@ -1,8 +1,8 @@
 classdef mirStruct
     properties (Access=public)
-        roughness {mustBeFloat}; % Placeholder for data property
-        inharmonicity {mustBeFloat}; % Placeholder for metadata property
-        novelty {mustBeFloat};
+        roughness {mustBeFloat}; % range [0,500]?
+        inharmonicity {mustBeFloat}; % Range[0,1]
+        novelty {mustBeFloat}; % not sure of range
     end
     methods
         function obj = mirStruct(opts)

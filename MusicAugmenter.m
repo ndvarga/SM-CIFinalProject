@@ -17,7 +17,9 @@ classdef MusicAugmenter
         a % MIRToolbox audio object
         noiseGenerator % dsp.ColoredNoise object
         augmenter % audioDataAugmenter object
+        delayEffect % audioexample delay
         mirParams 
+        
     end
     
     properties (Access = private)
@@ -45,9 +47,17 @@ classdef MusicAugmenter
             src.maxAudioLength = maxAudioLengthSeconds;
             src.noiseGenerator = dsp.ColoredNoise(Color="custom", BoundedOutput=true, SamplesPerFrame=samplesPerFrame, InverseFrequencyPower=0);
             src.augmenter = audioDataAugmenter;
+            % delayEffect = audioexample.Echo;
+            % delayEffect.Delay = 1.0;
+            % delayEffect.SampleRate = sampleRate;
+            % delayEffect.WetDryMix = 0.4;
+            src.delayEffect = dsp.Delay(100);
+            % src.delayEffect = delayEffect;
             src.samplesPerFrame = samplesPerFrame;
             src.mirParams = mirParams;
         end
+
+  
 
         function [src, audio_out] = step(src, audio)
             % This will be run fairly frequently to step the audio outuput stream. 
@@ -98,7 +108,7 @@ classdef MusicAugmenter
             end
             
             if (src.mirParams.novelty > 0.5) && (randi(10) == 1)
-                src.resample(64);
+                src.resample(64, 0.8,2);
             end
             % add noise
             audio = src.addNoise(audio);
@@ -132,7 +142,20 @@ classdef MusicAugmenter
         end
 
 
-        function src = resample(src, n_resamples, max_resample_len)
+        function src = resample(src, n_resamples, base_delay_len, max_resample_len)
+            % This function resamples the audio in src.a
+            % by dividing it into 64 parts and picking a random stop and
+            % start index out of those.You can also pass it
+            % max_resample_len in seconds, which will limit the length of
+            % the resampled audio
+            % 
+            arguments
+                src 
+                n_resamples {mustBeInteger}
+                base_delay_len {mustBeLessThan(base_delay_len, 1)}
+                max_resample_len = 0
+            end
+
             % Divide audio into 64 parts
             if isempty(n_resamples)
             n_resamples = 64;
@@ -146,20 +169,71 @@ classdef MusicAugmenter
                
       
                 % tempMarkers = rand(2)/src.mirParams.inharmonicity*src.samplesPerFrame;
-                resampleIndex = sort(randi(n_resamples,2));
+                % get indices to pick from tempMusicMarker.
+                % resampleIndex in the range (1,64)
+                resampleIndex = randi(n_resamples,2);
                 resampleIndex = resampleIndex(:,1);
-                randomness = rand(1) * src.mirParams.inharmonicity;
-                resampleIndices = sort(ceil(randomness.*resampleIndex));
                 
+                % pick a random float, and scale it by the inharmonicity
+                % This "penalizes" inharmonicity by making the resampling
+                % more chaotic with an increase in inharmonicity
+                randomness = rand(1) * src.mirParams.inharmonicity;
+                
+                % We will add one to make sure our index is still in the
+                % correct MATLAB indexing range. We also multiply our
+                % randomness value by the resample indices, round to make
+                % sure it's a valid index, and sort so the lower one is
+                % first
+
+                resampleIndices = sort(round((randomness.*resampleIndex)+1));
+                
+                % not sure if we need to sort here, but these are the
+                % actual sample indicies for the audio stream
                 audioIndices = sort([tempMusicMarker(resampleIndices(1)),...
                     tempMusicMarker(resampleIndices(2))]);
+
+                % If the indicies result in something l
+                if max_resample_len > 0
+                    if audioIndices(2) - audioIndices(1) > src.sampleRate * max_resample_len 
+                        audioIndices(2) = audioIndices(1) + src.sampleRate * max_resample_len;
+                    end
+                elseif max_resample_len < 0
+                    error('Resample len must be positive!')
+                end
+
+
+                % play the resampled audio using nonblocking soundsc
+                % This means the resampling can occur in parallel with the other stuff
                 resampledAudio = src.a(audioIndices(1):audioIndices(2));
-                soundsc(resampledAudio,src.sampleRate)
+                
+                % apply delay to the audio up to 8 times depending on the
+                % 8 biased coin flips
+                
+                nHeads = 0;
+                for i = 1:8
+                    coinFlip = rand(1);
+                    if coinFlip > 0.6
+                        nHeads = nHeads + 1;
+                    end
+                end
+                
+                release(src.delayEffect);
+                src.delayEffect.Length = floor(base_delay_len*src.sampleRate);
+                y = zeros([length(resampledAudio)+src.delayEffect.Length*nHeads,1]);
+                
+                delayedAudio = resampledAudio;
+                for i = 1:nHeads
+
+                    delayedAudio = src.delayEffect(delayedAudio);
+                    fbAmplitude = linspace(nHeads/10, 0, length(delayedAudio));
+                    
+
+                    y(1:length(delayedAudio)) = ...
+                        y(1:length(delayedAudio)) + delayedAudio * fbAmplitude;
+                end
+                soundsc(y,src.sampleRate)
                
-           end
-            src.midiMap = linspace(tempMusicMarker(1), ...
-                tempMusicMarker(2), ...
-                128) * src.samplesPerFrame;
+            end
         end
 
         function src = getMidi(src)
