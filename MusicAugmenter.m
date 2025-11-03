@@ -21,12 +21,11 @@ classdef MusicAugmenter
     end
     
     properties (Access = private)
-        audioBuffer
-        sampleRate
-        samplesPerFrame
-        maxAudioLength
-        midiMap
-        tempAudio
+        sampleRate % audio sample rate
+        samplesPerFrame % audio samples per frame (processing step size pretty much)
+        maxAudioLength % The maximal length of src.a in seconds
+        midiMap % unused rn
+        tempAudio % basically a buffer to hold our processed audio
     end
 
     methods (Access = public)
@@ -36,6 +35,7 @@ classdef MusicAugmenter
             samplesPerFrame,...
             mirParams)
             
+            % make sure the audio passed to the object is the right orientation
             if size(audio, 1) < size(audio, 2)
                 src.a = audio';
             else 
@@ -55,8 +55,6 @@ classdef MusicAugmenter
             % audio signal
             
 
-            % Append the incoming audio to the audio buffer that is used to
-            % generate resampling audio
             
             % Put audio row-wise
             [audio_rows, audio_columns] = size(audio);
@@ -85,8 +83,13 @@ classdef MusicAugmenter
                 audio = [audio,audio];
             end
 
+            % Append the incoming audio to the audio buffer that is used to
+            % generate resampling audio
             appended_audio = cat(1, src.a, audio);
             
+            % This will gradually overwrite the stuff in the stored audio
+            % array src.a, which holds on to recorded audio
+
             if size(appended_audio, 1) > src.sampleRate * src.maxAudioLength
                 src.a = appended_audio(...
                     1+max(size(audio)):end);
@@ -99,9 +102,11 @@ classdef MusicAugmenter
             end
             % add noise
             audio = src.addNoise(audio);
+            % set the output buffer value
             src.tempAudio = audio;
+
+            % return the audio_out
             audio_out = audio;
-            % soundsc(audio, src.sampleRate)
         end
 
         function noisy_audio = addNoise(src, audio)
@@ -112,29 +117,34 @@ classdef MusicAugmenter
             brightness = 0;
             
             
-
+            % maps roughness from its input range to [0,1]
             mapped_roughness = src.map(src.mirParams.roughness, 0, 500, 0, 1);
             % generate some noise for each channel
             
             noise = src.noiseGenerator.step();
+            % scale noise by mapped roughness
             noise = noise * mapped_roughness;                
 
+            % add noise to audio signal
+            % TODO: might be fun to multiply it
             noisy_audio = noise + audio;
 
         end
 
 
-        function src = resample(src, n_resamples)
+        function src = resample(src, n_resamples, max_resample_len)
             % Divide audio into 64 parts
             if isempty(n_resamples)
             n_resamples = 64;
             end
+
+            % make sure audio memory isn't empty
             if ~isempty(src.a) 
+                % Divide the sample indices into n_resamples
                 tempMusicMarker = linspace(1, max(size(src.a)), ...
                     n_resamples);
                
-           
-
+      
                 % tempMarkers = rand(2)/src.mirParams.inharmonicity*src.samplesPerFrame;
                 resampleIndex = sort(randi(n_resamples,2));
                 resampleIndex = resampleIndex(:,1);
