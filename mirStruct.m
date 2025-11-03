@@ -5,10 +5,13 @@ classdef mirStruct
         novelty {mustBeFloat};
     end
     methods
-        function obj = mirStruct(roughness, inharmonicity, novelty)
-            obj.roughness = roughness;
-            obj.inharmonicity = inharmonicity;
-            obj.novelty = novelty;
+        function obj = mirStruct(opts)
+            arguments
+                opts.?mirStruct
+            end
+            for prop = string(fieldnames(opts))'
+                obj.(prop) = opts.(prop);
+            end
         end
     end
 end

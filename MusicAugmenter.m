@@ -1,4 +1,14 @@
-% TODO: Intro comments
+    % MusicAugmenter is a class that can implement real-time audio
+    % augmentation with noise and resampling.
+    %{
+        MusicAugmenter
+        Copyright 2025 (c) Nikolas Varga
+        MUST5510
+        Northeastern University
+       
+
+    %}
+
 
 classdef MusicAugmenter
 % Use sound or soundsc to read out a certain number of frames
@@ -16,6 +26,7 @@ classdef MusicAugmenter
         samplesPerFrame
         maxAudioLength
         midiMap
+        tempAudio
     end
 
     methods (Access = public)
@@ -32,13 +43,13 @@ classdef MusicAugmenter
             end
             src.sampleRate = sampleRate;
             src.maxAudioLength = maxAudioLengthSeconds;
-            src.noiseGenerator = dsp.ColoredNoise(Color="white", BoundedOutput=true, SamplesPerFrame=samplesPerFrame);
+            src.noiseGenerator = dsp.ColoredNoise(Color="custom", BoundedOutput=true, SamplesPerFrame=samplesPerFrame, InverseFrequencyPower=0);
             src.augmenter = audioDataAugmenter;
             src.samplesPerFrame = samplesPerFrame;
             src.mirParams = mirParams;
         end
 
-        function audio_out = step(src, audio)
+        function [src, audio_out] = step(src, audio)
             % This will be run fairly frequently to step the audio outuput stream. 
             % It will apply everything and return the augmented
             % audio signal
@@ -48,12 +59,12 @@ classdef MusicAugmenter
             % generate resampling audio
             
             % Put audio row-wise
-            audio_rows, audio_columns = size(audio);
+            [audio_rows, audio_columns] = size(audio);
             if audio_rows < audio_columns
                 audio = audio';
             end
             
-            audio_rows, audio_columns = size(audio);
+            [audio_rows, ~] = size(audio);
 
             % Ensure the size of the audio input is the same as
             % samplesPerFrame
@@ -61,7 +72,7 @@ classdef MusicAugmenter
                 disp('size of audio input is less than frame size!')
                 padding = zeros([src.samplesPerFrame - audio_rows,1]);
                 audio = [padding; audio]; % Pad the audio with zeros
-            elseif audiorows > src.samplesPerFrame
+            elseif audio_rows > src.samplesPerFrame
                 disp('size of audio input is greater than frame size!')
                 audio = audio(1:src.samplesPerFrame);            
             end
@@ -88,6 +99,7 @@ classdef MusicAugmenter
             end
             % add noise
             audio = src.addNoise(audio);
+            src.tempAudio = audio;
             audio_out = audio;
             % soundsc(audio, src.sampleRate)
         end
@@ -96,6 +108,11 @@ classdef MusicAugmenter
             % function which uses the dsp.Noise to generate noise for the
             % audio based on the mirParams.roughness parameter
             
+            % TODO: NO MORE CONST
+            brightness = 0;
+            
+            
+
             mapped_roughness = src.map(src.mirParams.roughness, 0, 500, 0, 1);
             % generate some noise for each channel
             

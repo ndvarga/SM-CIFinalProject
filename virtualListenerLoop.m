@@ -1,4 +1,5 @@
 clearvars; clc; audiodevreset;
+close all
 try
     release(audio_out);
 catch
@@ -16,8 +17,8 @@ myAudio = audioread("being a girl [2044987124].mp3");
 
 % hardcoded fo today
 audio_out = audioDeviceWriter("SampleRate",sr,...
-    "BufferSize",samplesPerFrame, "Device","Focusrite USB ASIO",...
-    "Driver","ASIO");
+    "BufferSize",samplesPerFrame, "Device","Speakers (Realtek(R) Audio)",...
+    "Driver","DirectSound");
 
 if contains(input_info(2).Name, "Windows DirectSound")
     audioReader = audioDeviceReader("SampleRate",sr, "Device", "Microphone Array (Intel® Smart Sound Technology for Digital Microphones)",...
@@ -26,15 +27,25 @@ end
 
 
 mirParams = mirStruct('roughness', 10.0, 'novelty', 0.8, 'inharmonicity', 0.4);
-augment = MusicAugmenter(myAudio(sr*10:sr*12),sr,2,samplesPerFrame, mirParams);
+augment = MusicAugmenter(myAudio(sr*10:sr*12),sr,8,samplesPerFrame, mirParams);
 
-myFig = figure;
+% myFig = figure;
 
-while true
+% Create a figure with a stop button
+fig = figure;
+
+pause(1)
+i = 0;
+while ishandle(fig)
     someAudio = audioReader.step;
-    moreAudio = augment.step(someAudio);
+    [augment, moreAudio] = augment.step(someAudio);
+    % moreAudio = augment.getAudioOut;
     audio_out.step(moreAudio);
-
+    drawnow;
+    i = i+1;
 end
 release(audio_out);
 release(audioReader);
+delete(audio_out)
+delete(audioReader)
+clearvars;
