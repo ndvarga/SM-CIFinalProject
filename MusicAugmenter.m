@@ -47,12 +47,11 @@ classdef MusicAugmenter
             src.maxAudioLength = maxAudioLengthSeconds;
             src.noiseGenerator = dsp.ColoredNoise(Color="custom", BoundedOutput=true, SamplesPerFrame=samplesPerFrame, InverseFrequencyPower=0);
             src.augmenter = audioDataAugmenter;
-            % delayEffect = audioexample.Echo;
-            % delayEffect.Delay = 1.0;
-            % delayEffect.SampleRate = sampleRate;
-            % delayEffect.WetDryMix = 0.4;
-            src.delayEffect = dsp.Delay(100);
-            % src.delayEffect = delayEffect;
+            delayEffect = audioexample.Echo;
+            delayEffect.Delay = 1.0;
+            delayEffect.SampleRate = sampleRate;
+            delayEffect.WetDryMix = 0.4;
+            src.delayEffect = delayEffect;
             src.samplesPerFrame = samplesPerFrame;
             src.mirParams = mirParams;
         end
@@ -107,11 +106,13 @@ classdef MusicAugmenter
                 src.a = appended_audio;
             end
             
-            if (src.mirParams.novelty > 0.5) && (randi(10) == 1)
+            % resample based on nvelty and time
+            if (src.mirParams.novelty > 0.5) && (randi(100) == 1)
                 src.resample(64, 0.8,2);
             end
             % add noise
-            audio = src.addNoise(audio);
+            noiseScale = 0.001;
+            audio = src.addNoise(audio, noiseScale);
             % set the output buffer value
             src.tempAudio = audio;
 
@@ -119,7 +120,7 @@ classdef MusicAugmenter
             audio_out = audio;
         end
 
-        function noisy_audio = addNoise(src, audio)
+        function noisy_audio = addNoise(src, audio, noiseScale)
             % function which uses the dsp.Noise to generate noise for the
             % audio based on the mirParams.roughness parameter
             
@@ -133,11 +134,14 @@ classdef MusicAugmenter
             
             noise = src.noiseGenerator.step();
             % scale noise by mapped roughness
-            noise = noise * mapped_roughness;                
+            noise = noise * mapped_roughness * noiseScale;                
 
             % add noise to audio signal
             % TODO: might be fun to multiply it
             noisy_audio = noise + audio;
+            if max(noisy_audio) > 1
+                noisy_audio = noisy_audio ./ max(noisy_audio);
+            end
 
         end
 
@@ -189,13 +193,15 @@ classdef MusicAugmenter
                 
                 % not sure if we need to sort here, but these are the
                 % actual sample indicies for the audio stream
-                audioIndices = sort([tempMusicMarker(resampleIndices(1)),...
-                    tempMusicMarker(resampleIndices(2))]);
+                audioIndices = sort([round(tempMusicMarker(resampleIndices(1))) + 1,...
+                    ceil(tempMusicMarker(resampleIndices(2)))]);
 
-                % If the indicies result in something l
+                % If the indicies result in something llonger than the
+                % specified maximum length, take those samples away from
+                % the end
                 if max_resample_len > 0
                     if audioIndices(2) - audioIndices(1) > src.sampleRate * max_resample_len 
-                        audioIndices(2) = audioIndices(1) + src.sampleRate * max_resample_len;
+                        audioIndices(2) = audioIndices(1) + floor(src.sampleRate * max_resample_len);
                     end
                 elseif max_resample_len < 0
                     error('Resample len must be positive!')
@@ -216,22 +222,22 @@ classdef MusicAugmenter
                         nHeads = nHeads + 1;
                     end
                 end
-                
+                fprintf('resampling, delaying %d times\n', nHeads);
                 release(src.delayEffect);
-                src.delayEffect.Length = floor(base_delay_len*src.sampleRate);
-                y = zeros([length(resampledAudio)+src.delayEffect.Length*nHeads,1]);
+                % set the feedback on the delay to be mapped to the
+                % numberof heads
+                src.delayEffect.FeedbackLevel = src.map(nHeads,0,8,0,0.5);
                 
-                delayedAudio = resampledAudio;
+                % set the delay time in s
+                src.delayEffect.Delay = base_delay_len;
+                y = resampledAudio;
                 for i = 1:nHeads
-
-                    delayedAudio = src.delayEffect(delayedAudio);
-                    fbAmplitude = linspace(nHeads/10, 0, length(delayedAudio));
-                    
-
-                    y(1:length(delayedAudio)) = ...
-                        y(1:length(delayedAudio)) + delayedAudio * fbAmplitude;
+                   y = src.delayEffect(resampledAudio); 
                 end
+                y = normalize(y, 'range') * 2 - 1;
                 soundsc(y,src.sampleRate)
+                % player = audioplayer(y,src.sampleRate,16);
+                % playblocking(player)
                
             end
         end
@@ -256,11 +262,11 @@ classdef MusicAugmenter
         end
 
         function audio_out = getAudioOut(src)
-            audio_out = src.audioBuffer;
+            audio_out = src.tempAudio;
         end
     end
 
-    methods (Access = private)
+    methods (Access = protected)
         function mapped = map(~, input, minIn, maxIn, minOut, maxOut)
             mapped = minOut + ((input - minIn) / (maxIn - minIn)) * (maxOut - minOut);
         end
