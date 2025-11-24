@@ -9,6 +9,8 @@
 
 %}
 
+% removed mirparams in constructor 11/20/2025
+% TODO: stereo processing?
 
 classdef MusicAugmenter
 % Use sound or soundsc to read out a certain number of frames
@@ -18,7 +20,7 @@ classdef MusicAugmenter
         noiseGenerator % dsp.ColoredNoise object
         augmenter % audioDataAugmenter object
         delayEffect % audioexample delay
-        mirParams 
+        mirParams = mirStruct("brightness",[],"novelty",[],"roughness",[])
         
     end
     
@@ -34,15 +36,21 @@ classdef MusicAugmenter
         function src = MusicAugmenter(audio, ...
             sampleRate, ...
             maxAudioLengthSeconds, ...
-            samplesPerFrame,...
-            mirParams)
+            samplesPerFrame...
+            )
             
             % make sure the audio passed to the object is the right orientation
             if size(audio, 1) < size(audio, 2)
-                src.a = audio';
-            else 
-                src.a = audio;
+                audio = audio';
             end
+            
+            % also just make it mono
+            if size(audio, 2) > 1
+                audio = mean(audio,2);
+            end
+
+            src.a = audio;
+
             src.sampleRate = sampleRate;
             src.maxAudioLength = maxAudioLengthSeconds;
             src.noiseGenerator = dsp.ColoredNoise(Color="custom", BoundedOutput=true, SamplesPerFrame=samplesPerFrame, InverseFrequencyPower=0);
@@ -53,7 +61,6 @@ classdef MusicAugmenter
             delayEffect.WetDryMix = 0.4;
             src.delayEffect = delayEffect;
             src.samplesPerFrame = samplesPerFrame;
-            src.mirParams = mirParams;
         end
 
   
@@ -71,7 +78,7 @@ classdef MusicAugmenter
                 audio = audio';
             end
             
-            [audio_rows, ~] = size(audio);
+            [audio_rows, audio_columns] = size(audio);
 
             % Ensure the size of the audio input is the same as
             % samplesPerFrame
@@ -84,13 +91,12 @@ classdef MusicAugmenter
                 audio = audio(1:src.samplesPerFrame);            
             end
             
-
-
-            % if input audio is not stereo and audio buffer is stereo,
-            % make input audio stereo
-            if size(audio, 2) == 1 && size(src.a, 2) == 2
-                audio = [audio,audio];
+            if audio_columns > 1
+                audio = mean(audio,2);
             end
+
+
+            
 
             % Append the incoming audio to the audio buffer that is used to
             % generate resampling audio
@@ -106,12 +112,14 @@ classdef MusicAugmenter
                 src.a = appended_audio;
             end
             
-            % resample based on nvelty and time
-            if (src.mirParams.novelty > 0.5) && (randi(100) == 1)
-                src.resample(64, 0.8,2);
+            % resample based on roughness and time
+            if ~isempty(src.mirParams.roughness)
+                if (src.mirParams.roughness > 2500) && (randi(10) == 1)
+                    src.resample(64,0.8,2);
+                end
             end
             % add noise
-            noiseScale = 0.001;
+            noiseScale = 0.1;
             audio = src.addNoise(audio, noiseScale);
             % set the output buffer value
             src.tempAudio = audio;
@@ -125,20 +133,33 @@ classdef MusicAugmenter
             % audio based on the mirParams.roughness parameter
             
             % TODO: NO MORE CONST
-            brightness = 0;
             
+                  
+            if ~isempty(src.mirParams.brightness)
+                brightness = src.mirParams.brightness;
+            else
+                brightness = 1;
+           
+            end
             
-            % maps roughness from its input range to [0,1]
-            mapped_roughness = src.map(src.mirParams.roughness, 0, 500, 0, 1);
+            %     % maps roughness from its input range to [0,1]
+            %     mapped_roughness = src.map(src.mirParams.roughness, 0, 5000, 0, 1);
+            % else
+            %     mapped_roughness = 0;
+            % end
+            
             % generate some noise for each channel
             
             noise = src.noiseGenerator.step();
             % scale noise by mapped roughness
-            noise = noise * mapped_roughness * noiseScale;                
+            noise = noise * brightness * noiseScale * 3;                
 
             % add noise to audio signal
             % TODO: might be fun to multiply it
-            noisy_audio = noise + audio;
+            
+            noisy_audio = noise .* audio;
+  
+
             if max(noisy_audio) > 1
                 noisy_audio = noisy_audio ./ max(noisy_audio);
             end
@@ -181,7 +202,12 @@ classdef MusicAugmenter
                 % pick a random float, and scale it by the inharmonicity
                 % This "penalizes" inharmonicity by making the resampling
                 % more chaotic with an increase in inharmonicity
-                randomness = rand(1) * src.mirParams.inharmonicity;
+
+                if isa(src.mirParams, "mirStruct")
+                    randomness = rand(1) * src.mirParams.novelty*3;
+                else
+                    randomness = rand(1);
+                end
                 
                 % We will add one to make sure our index is still in the
                 % correct MATLAB indexing range. We also multiply our
@@ -190,6 +216,14 @@ classdef MusicAugmenter
                 % first
 
                 resampleIndices = sort(round((randomness.*resampleIndex)+1));
+
+                if resampleIndices(2) > n_resamples
+                    resampleIndices(2) = n_resamples;
+                end
+                
+                if resampleIndices(1) < 1
+                    resampleIndices(1) = 1;
+                end
                 
                 % not sure if we need to sort here, but these are the
                 % actual sample indicies for the audio stream
