@@ -1,20 +1,20 @@
-    % MusicAugmenter is a class that can implement real-time audio
-    % augmentation with noise and resampling.
-    %{
-        MusicAugmenter
-        Copyright 2025 (c) Nikolas Varga
-        MUST5510
-        Northeastern University
-       
+%   MusicAugmenter is a class that can implement real-time audio
+%   augmentation with noise and resampling.
 
-    %}
+%{
+    MusicAugmenter
+    Copyright 2025 (c) Nikolas Varga
+    MUST5510
+    Northeastern University
+
+%}
 
 
 classdef MusicAugmenter
 % Use sound or soundsc to read out a certain number of frames
 % Buffer object, could play buffers of zeros
     properties (Access = public)
-        a % MIRToolbox audio object
+        a % audio object
         noiseGenerator % dsp.ColoredNoise object
         augmenter % audioDataAugmenter object
         delayEffect % audioexample delay
@@ -235,7 +235,7 @@ classdef MusicAugmenter
                    y = src.delayEffect(resampledAudio); 
                 end
                 y = normalize(y, 'range') * 2 - 1;
-                soundsc(y,src.sampleRate)
+                sound(y,src.sampleRate)
                 % player = audioplayer(y,src.sampleRate,16);
                 % playblocking(player)
                

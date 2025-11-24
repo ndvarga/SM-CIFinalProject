@@ -1,3 +1,15 @@
+%{
+    MusicAugmenterLoop
+    Copyright 2025 (c) Nikolas Varga
+    MUST5510
+    Northeastern University
+
+    This script creates audio connections to the microphone and speakers
+    and creates a MusicAugmenter object to augment the audio, which it
+    does in a loop
+
+%}
+
 clearvars; clc; audiodevreset;
 close all
 try
@@ -28,7 +40,8 @@ if contains(input_info(2).Name, "Windows DirectSound")
 end
 
 % hardcode some mir parameters
-mirParams = mirStruct('roughness', 10.0, 'novelty', 0.8, 'inharmonicity', 0.4);
+mirParams = mirStruct('roughness', 10.0, 'novelty', 0.8, ...
+    'inharmonicity', 0.4, 'brightness', 1, 'pulseClarity', 0.6);
 
 % construct a music augmenter
 augment = MusicAugmenter(myAudio(sr*10:sr*12),sr,8,samplesPerFrame, mirParams);

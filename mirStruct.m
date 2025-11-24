@@ -1,8 +1,12 @@
+%   This is a structure that has properties corresponding to 
+%   MIRToolbox parameters used in the MusicAugmenter
 classdef mirStruct
     properties (Access=public)
         roughness {mustBeFloat}; % range [0,500]?
         inharmonicity {mustBeFloat}; % Range[0,1]
         novelty {mustBeFloat}; % not sure of range
+        pulseClarity
+        brightness
     end
     methods
         function obj = mirStruct(opts)
