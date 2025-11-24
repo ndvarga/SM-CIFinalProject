@@ -1,9 +1,10 @@
 %{ 
-edited by Zoe Mumford
-Uses code/ideas from:
+script by Zoe Mumford 
+MUST5510 Fall 2025
+
+Uses code/concepts from:
 MUST5510_Week2_1
 MUST5510_Week1_1
-
 A.K. McCullough, PhD, MS, MA
 MUST 5973
 Spring 2025
@@ -43,7 +44,8 @@ for i = 1:numel(playernames)
 end
 
 %let user select device and set audiostreamer accordingly
-userChoice = input('\n Enter which audio Output you would like to use: ')
+% userChoice = input(' Enter which audio Output you would like to use: ')
+userChoice = 4;
 as.Player = playernames(userChoice);
 
 %get all available INPUT devices:
@@ -54,7 +56,8 @@ for i = 1:numel(recordernames)
 end
 
 %let user select device and set audiostreamer accordingly
-userChoice = input('\n Enter which audio Input you would like to use: ')
+% userChoice = input(' Enter which audio Input you would like to use: ')
+userChoice = 4;
 as.Recorder = recordernames(userChoice);
 
 %% check and store latency in milliseconds
@@ -120,7 +123,7 @@ release(as);
 % while toc < recordinglength
 %     audio = reader(); %data from audioreader
 %     scope(audio)
-%     deviceWriter(audio) %write to device audio output (how to manage the delay?)
+%     deviceWriter(audio) %write to device audio output 
 % 
 % end
 % disp('Recording complete');
