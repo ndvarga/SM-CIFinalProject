@@ -1,59 +1,84 @@
-% TODO: Intro comments
+%   MusicAugmenter is a class that can implement real-time audio
+%   augmentation with noise and resampling.
+
+%{
+    MusicAugmenter
+    Copyright 2025 (c) Nikolas Varga
+    MUST5510
+    Northeastern University
+
+%}
+
+% removed mirparams in constructor 11/20/2025
+% TODO: stereo processing?
 
 classdef MusicAugmenter
 % Use sound or soundsc to read out a certain number of frames
 % Buffer object, could play buffers of zeros
     properties (Access = public)
-        a % MIRToolbox audio object
+        a % audio object
         noiseGenerator % dsp.ColoredNoise object
         augmenter % audioDataAugmenter object
-        mirParams 
+        delayEffect % audioexample delay
+        mirParams = mirStruct("brightness",[],"novelty",[],"roughness",[])
+        
     end
     
     properties (Access = private)
-        audioBuffer
-        sampleRate
-        samplesPerFrame
-        maxAudioLength
-        midiMap
+        sampleRate % audio sample rate
+        samplesPerFrame % audio samples per frame (processing step size pretty much)
+        maxAudioLength % The maximal length of src.a in seconds
+        midiMap % unused rn
+        tempAudio % basically a buffer to hold our processed audio
     end
 
     methods (Access = public)
         function src = MusicAugmenter(audio, ...
             sampleRate, ...
             maxAudioLengthSeconds, ...
-            samplesPerFrame,...
-            mirParams)
+            samplesPerFrame...
+            )
             
+            % make sure the audio passed to the object is the right orientation
             if size(audio, 1) < size(audio, 2)
-                src.a = audio';
-            else 
-                src.a = audio;
+                audio = audio';
             end
+            
+            % also just make it mono
+            if size(audio, 2) > 1
+                audio = mean(audio,2);
+            end
+
+            src.a = audio;
+
             src.sampleRate = sampleRate;
             src.maxAudioLength = maxAudioLengthSeconds;
-            src.noiseGenerator = dsp.ColoredNoise(Color="white", BoundedOutput=true, SamplesPerFrame=samplesPerFrame);
+            src.noiseGenerator = dsp.ColoredNoise(Color="custom", BoundedOutput=true, SamplesPerFrame=samplesPerFrame, InverseFrequencyPower=0);
             src.augmenter = audioDataAugmenter;
+            delayEffect = audioexample.Echo;
+            delayEffect.Delay = 1.0;
+            delayEffect.SampleRate = sampleRate;
+            delayEffect.WetDryMix = 0.4;
+            src.delayEffect = delayEffect;
             src.samplesPerFrame = samplesPerFrame;
-            src.mirParams = mirParams;
         end
 
-        function audio_out = step(src, audio)
+  
+
+        function [src, audio_out] = step(src, audio)
             % This will be run fairly frequently to step the audio outuput stream. 
             % It will apply everything and return the augmented
             % audio signal
             
 
-            % Append the incoming audio to the audio buffer that is used to
-            % generate resampling audio
             
             % Put audio row-wise
-            audio_rows, audio_columns = size(audio);
+            [audio_rows, audio_columns] = size(audio);
             if audio_rows < audio_columns
                 audio = audio';
             end
             
-            audio_rows, audio_columns = size(audio);
+            [audio_rows, audio_columns] = size(audio);
 
             % Ensure the size of the audio input is the same as
             % samplesPerFrame
@@ -61,21 +86,25 @@ classdef MusicAugmenter
                 disp('size of audio input is less than frame size!')
                 padding = zeros([src.samplesPerFrame - audio_rows,1]);
                 audio = [padding; audio]; % Pad the audio with zeros
-            elseif audiorows > src.samplesPerFrame
+            elseif audio_rows > src.samplesPerFrame
                 disp('size of audio input is greater than frame size!')
                 audio = audio(1:src.samplesPerFrame);            
             end
             
-
-
-            % if input audio is not stereo and audio buffer is stereo,
-            % make input audio stereo
-            if size(audio, 2) == 1 && size(src.a, 2) == 2
-                audio = [audio,audio];
+            if audio_columns > 1
+                audio = mean(audio,2);
             end
 
+
+            
+
+            % Append the incoming audio to the audio buffer that is used to
+            % generate resampling audio
             appended_audio = cat(1, src.a, audio);
             
+            % This will gradually overwrite the stuff in the stored audio
+            % array src.a, which holds on to recorded audio
+
             if size(appended_audio, 1) > src.sampleRate * src.maxAudioLength
                 src.a = appended_audio(...
                     1+max(size(audio)):end);
@@ -83,56 +112,168 @@ classdef MusicAugmenter
                 src.a = appended_audio;
             end
             
-            if (src.mirParams.novelty > 0.5) && (randi(10) == 1)
-                src.resample(64);
+            % resample based on roughness and time
+            if ~isempty(src.mirParams.roughness)
+                if (src.mirParams.roughness > 2500) && (randi(10) == 1)
+                    src.resample(64,0.8,2);
+                end
             end
             % add noise
-            audio = src.addNoise(audio);
+            noiseScale = 0.1;
+            audio = src.addNoise(audio, noiseScale);
+            % set the output buffer value
+            src.tempAudio = audio;
+
+            % return the audio_out
             audio_out = audio;
-            % soundsc(audio, src.sampleRate)
         end
 
-        function noisy_audio = addNoise(src, audio)
+        function noisy_audio = addNoise(src, audio, noiseScale)
             % function which uses the dsp.Noise to generate noise for the
             % audio based on the mirParams.roughness parameter
             
-            mapped_roughness = src.map(src.mirParams.roughness, 0, 500, 0, 1);
+            % TODO: NO MORE CONST
+            
+                  
+            if ~isempty(src.mirParams.brightness)
+                brightness = src.mirParams.brightness;
+            else
+                brightness = 1;
+           
+            end
+            
+            %     % maps roughness from its input range to [0,1]
+            %     mapped_roughness = src.map(src.mirParams.roughness, 0, 5000, 0, 1);
+            % else
+            %     mapped_roughness = 0;
+            % end
+            
             % generate some noise for each channel
             
             noise = src.noiseGenerator.step();
-            noise = noise * mapped_roughness;                
+            % scale noise by mapped roughness
+            noise = noise * brightness * noiseScale * 3;                
 
-            noisy_audio = noise + audio;
+            % add noise to audio signal
+            % TODO: might be fun to multiply it
+            
+            noisy_audio = noise .* audio;
+  
+
+            if max(noisy_audio) > 1
+                noisy_audio = noisy_audio ./ max(noisy_audio);
+            end
 
         end
 
 
-        function src = resample(src, n_resamples)
+        function src = resample(src, n_resamples, base_delay_len, max_resample_len)
+            % This function resamples the audio in src.a
+            % by dividing it into 64 parts and picking a random stop and
+            % start index out of those.You can also pass it
+            % max_resample_len in seconds, which will limit the length of
+            % the resampled audio
+            % 
+            arguments
+                src 
+                n_resamples {mustBeInteger}
+                base_delay_len {mustBeLessThan(base_delay_len, 1)}
+                max_resample_len = 0
+            end
+
             % Divide audio into 64 parts
             if isempty(n_resamples)
             n_resamples = 64;
             end
+
+            % make sure audio memory isn't empty
             if ~isempty(src.a) 
+                % Divide the sample indices into n_resamples
                 tempMusicMarker = linspace(1, max(size(src.a)), ...
                     n_resamples);
                
-           
-
+      
                 % tempMarkers = rand(2)/src.mirParams.inharmonicity*src.samplesPerFrame;
-                resampleIndex = sort(randi(n_resamples,2));
+                % get indices to pick from tempMusicMarker.
+                % resampleIndex in the range (1,64)
+                resampleIndex = randi(n_resamples,2);
                 resampleIndex = resampleIndex(:,1);
-                randomness = rand(1) * src.mirParams.inharmonicity;
-                resampleIndices = sort(ceil(randomness.*resampleIndex));
                 
-                audioIndices = sort([tempMusicMarker(resampleIndices(1)),...
-                    tempMusicMarker(resampleIndices(2))]);
+                % pick a random float, and scale it by the inharmonicity
+                % This "penalizes" inharmonicity by making the resampling
+                % more chaotic with an increase in inharmonicity
+
+                if isa(src.mirParams, "mirStruct")
+                    randomness = rand(1) * src.mirParams.novelty*3;
+                else
+                    randomness = rand(1);
+                end
+                
+                % We will add one to make sure our index is still in the
+                % correct MATLAB indexing range. We also multiply our
+                % randomness value by the resample indices, round to make
+                % sure it's a valid index, and sort so the lower one is
+                % first
+
+                resampleIndices = sort(round((randomness.*resampleIndex)+1));
+
+                if resampleIndices(2) > n_resamples
+                    resampleIndices(2) = n_resamples;
+                end
+                
+                if resampleIndices(1) < 1
+                    resampleIndices(1) = 1;
+                end
+                
+                % not sure if we need to sort here, but these are the
+                % actual sample indicies for the audio stream
+                audioIndices = sort([round(tempMusicMarker(resampleIndices(1))) + 1,...
+                    ceil(tempMusicMarker(resampleIndices(2)))]);
+
+                % If the indicies result in something llonger than the
+                % specified maximum length, take those samples away from
+                % the end
+                if max_resample_len > 0
+                    if audioIndices(2) - audioIndices(1) > src.sampleRate * max_resample_len 
+                        audioIndices(2) = audioIndices(1) + floor(src.sampleRate * max_resample_len);
+                    end
+                elseif max_resample_len < 0
+                    error('Resample len must be positive!')
+                end
+
+
+                % play the resampled audio using nonblocking soundsc
+                % This means the resampling can occur in parallel with the other stuff
                 resampledAudio = src.a(audioIndices(1):audioIndices(2));
-                soundsc(resampledAudio,src.sampleRate)
+                
+                % apply delay to the audio up to 8 times depending on the
+                % 8 biased coin flips
+                
+                nHeads = 0;
+                for i = 1:8
+                    coinFlip = rand(1);
+                    if coinFlip > 0.6
+                        nHeads = nHeads + 1;
+                    end
+                end
+                fprintf('resampling, delaying %d times\n', nHeads);
+                release(src.delayEffect);
+                % set the feedback on the delay to be mapped to the
+                % numberof heads
+                src.delayEffect.FeedbackLevel = src.map(nHeads,0,8,0,0.5);
+                
+                % set the delay time in s
+                src.delayEffect.Delay = base_delay_len;
+                y = resampledAudio;
+                for i = 1:nHeads
+                   y = src.delayEffect(resampledAudio); 
+                end
+                y = normalize(y, 'range') * 2 - 1;
+                sound(y,src.sampleRate)
+                % player = audioplayer(y,src.sampleRate,16);
+                % playblocking(player)
                
-           end
-            src.midiMap = linspace(tempMusicMarker(1), ...
-                tempMusicMarker(2), ...
-                128) * src.samplesPerFrame;
+            end
         end
 
         function src = getMidi(src)
@@ -155,11 +296,11 @@ classdef MusicAugmenter
         end
 
         function audio_out = getAudioOut(src)
-            audio_out = src.audioBuffer;
+            audio_out = src.tempAudio;
         end
     end
 
-    methods (Access = private)
+    methods (Access = protected)
         function mapped = map(~, input, minIn, maxIn, minOut, maxOut)
             mapped = minOut + ((input - minIn) / (maxIn - minIn)) * (maxOut - minOut);
         end
