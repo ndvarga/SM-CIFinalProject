@@ -226,7 +226,7 @@ classdef MusicAugmenter
                 end
                 
                 % not sure if we need to sort here, but these are the
-                % actual sample indicies for the audio stream
+                % actual sample indices for the audio stream
                 audioIndices = sort([round(tempMusicMarker(resampleIndices(1))) + 1,...
                     ceil(tempMusicMarker(resampleIndices(2)))]);
 
