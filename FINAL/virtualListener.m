@@ -1,10 +1,13 @@
-classdef  mirtoolboxWizard < handle
+classdef  virtualListener < handle
 
     %   mirtoolboxWizard Real-time virtual listener
     %   A real-time virtual listener that uses MIRToolbox to assess user
     %   defined musical parameters within an input audio signal
 
     %{
+        virtualListener
+        Edited by Nikolas Varga
+        
         mirtoolboxWizard
         Copyright 2025 (c) Aston K McCullough
         Updated for MUST 5510 (v10012025)
@@ -21,14 +24,17 @@ classdef  mirtoolboxWizard < handle
 
 
     properties (Access = public)
-        pulseClarity
-        tempo
-        key
-        a % MIRToolbox audio signal
+        novelty
+        roughness
+        rms_mir
+        a % MIRToolbox audio object
+
     end
 
     properties (Access = private)
         tempBuffer
+        audioLength
+        sampleRate
     end
 
     events
@@ -37,10 +43,12 @@ classdef  mirtoolboxWizard < handle
 
     methods
 
-        function obj = mirtoolboxWizard(audio)
+        function obj = virtualListener(audio, audioLength, sampleRate)
             %mirtoolboxWizard
             % Construct MIRToolbox object
             obj.a = audio;
+            obj.audioLength = audioLength;
+            obj.sampleRate = sampleRate;
             addlistener(obj,'updateJudgement',@newJudgement);
         end
 
@@ -52,7 +60,7 @@ classdef  mirtoolboxWizard < handle
 
                 src.a = audio;
 
-            elseif size(src.a,1) <= 44100 * 15
+            elseif size(src.a,1) <= 44100 * src.audioLength % If the audio is less
 
                 src.a = cat(1,src.a,audio);
 
@@ -71,21 +79,23 @@ classdef  mirtoolboxWizard < handle
 
         end
 
-        function src = newJudgement(src,~)
+        function src = newJudgement(src,event)
 
-            % persistent anonFunc
-            % 
-            % if isempty(anonFunc)
+            persistent anonFunc
+
+            if isempty(anonFunc)
             anonFunc = @(newValue1,newValue2,newValue3) ...
                 nestedAnon(src,newValue1,newValue2,newValue3);
-            % end
+            end
 
             F = parfeval(@gatherJudgements,3,src);
 
             FOut = afterEach(F(end),anonFunc,1);
 
-            if ~isempty(FOut.OutputArguments{:})
-                src = FOut.OutputArguments{:}{:};
+            src = FOut.OutputArguments;
+
+            if ~isempty(src{:})
+                src = src{:}{:};
             end
 
         end
@@ -95,27 +105,23 @@ classdef  mirtoolboxWizard < handle
             try
 
                 A1 = get(newValue1,"Data"); A1 = cellReveal(src,A1);
-                A1 = movingAverageFilter(src,cat(1,src.pulseClarity,A1));
-                src.pulseClarity = cat(1,src.pulseClarity,A1(end));
+                % Smooth [pulseClarity,A1] and then append the last value
+                % in A1
+
+                A1 = movingAverageFilter(src,cat(1,src.novelty,A1));
+                src.novelty = cat(1,src.novelty,A1(end));
 
                 A2 = get(newValue2,"Data"); A2 = cellReveal(src,A2);
-                A2 = movingAverageFilter(src,cat(1,src.tempo,A2));
-                src.tempo = cat(1,src.tempo,A2(end));
+                A2 = movingAverageFilter(src,cat(1,src.roughness,A2));
+                src.roughness = cat(1,src.roughness,A2(end));
                 
-                tempKey = unpackKey(src,newValue3);
+                rms_mir = mirgetdata(newValue3);
               
-                if isempty(src.key)
+               
 
-                    src.key = tempKey;
-                   
-                else
-
-                    A3 = movingAverageFilter(src,[src.key.value; ...
-                        tempKey.value(:)]);
-                    src.key.value = cat(1,src.key.value,A3(end));
-                    src.key.note = cat(1,src.key.note,tempKey.note(end));
-
-                end
+                A3 = movingAverageFilter(src,[src.rms_mir; ...
+                    rms_mir]);
+                src.rms_mir = cat(1,src.rms_mir,A3(end));
                
  
             catch 
@@ -124,24 +130,20 @@ classdef  mirtoolboxWizard < handle
 
         end
 
-        function [pulseClarity,tempo,key,src] = gatherJudgements(src,~)
+        function [novelty,roughness,rms_mir] = gatherJudgements(src,~)
 
             try
 
                 tempMIRObject = miraudio(sum(src.a,2));
-                pulseClarity = mirpulseclarity(tempMIRObject);
-                tempo = mirtempo(tempMIRObject);
-                [tempkey1Out,~,tempkey2Out] = mirkey(tempMIRObject);
-               
-                key.key1Out = get(tempkey1Out,'Data');
-                key.key2Out = get(tempkey2Out,'Data');
+                novelty = mirnovelty(tempMIRObject);
+                roughness = mirroughness(tempMIRObject);
+                rms_mir = mirrms(tempMIRObject);
 
             catch 
 
-                pulseClarity = NaN;
-                tempo = NaN;
-                key.key1Out = {}; 
-                key.Key2Out = {};
+                novelty = NaN;
+                roughness = NaN;
+                rms_mir = NaN;
 
             end
 
@@ -163,7 +165,7 @@ classdef  mirtoolboxWizard < handle
 
             persistent noteList
 
-            keyOut = struct();
+            keyOut = struct;
 
             if isempty(noteList)
 
@@ -171,37 +173,16 @@ classdef  mirtoolboxWizard < handle
                     'F#' 'G', 'G#' 'A' 'A#' 'B'};
             end
 
-            if ~isempty(src.key)
+            if ~isempty(src.rms_mir)
 
                 tempNoteValue = cellReveal(src,keyStruct.key1Out);
-                keyOut.value = cat(1,[src.key.value],tempNoteValue);
+                keyOut.value = cat(1,[src.rms_mir.value],tempNoteValue);
 
                 tempMajMinVec = cellReveal(src,keyStruct.key2Out);
 
                 % index note
                 tempNote = noteList(round(tempNoteValue));
 
-                % determine if major or minor key
-                % 1 = major; 0 = minor
-                majorORminor = (tempMajMinVec(tempNoteValue,:,:,1) > ...
-                    tempMajMinVec(tempNoteValue,:,:,2));
-
-                switch majorORminor
-
-                    case true
-
-                       %  keyOut.note =
-                       %  cat(2,[src.key.note],strcat(tempNote,'M')); old
-                       %  code
-                       
-                       keyOut.note = cat(1,[src.key.note],strcat(tempNote,'M'));
-                        
-
-                    case false
-
-                        keyOut.note = cat(1,[src.key.note],...
-                            strcat(tempNote,'m'));
-                end
                 
 
             else

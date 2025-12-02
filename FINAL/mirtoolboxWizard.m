@@ -25,6 +25,10 @@ classdef  mirtoolboxWizard < handle
         brightness
         a % MIRToolbox audio object
 
+        roughness
+        inharmonicity
+        novelty
+
     end
 
     properties (Access = private)
@@ -40,7 +44,7 @@ classdef  mirtoolboxWizard < handle
 
         function obj = mirtoolboxWizard(audio)
             %mirtoolboxWizard
-            % Construct MIRToolbox object
+            %Construct MIRToolbox object
             obj.a = audio;
             addlistener(obj,'updateJudgement',@newJudgement);
         end
