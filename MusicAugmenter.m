@@ -20,7 +20,7 @@ classdef MusicAugmenter
         noiseGenerator % dsp.ColoredNoise object
         augmenter % audioDataAugmenter object
         delayEffect % audioexample delay
-        mirParams = mirStruct("brightness",[],"novelty",[],"roughness",[])
+        mirParams = mirStruct("brightness",[],"novelty",[],"inharmonicity",[])
         
     end
     
@@ -115,9 +115,10 @@ classdef MusicAugmenter
                 src.a = appended_audio;
             end
             
+            % TODO: use historical maximum
             % resample based on roughness and time
-            if ~isempty(src.mirParams.roughness)
-                if (src.mirParams.roughness > 2500) && (randi(10) == 1)
+            if ~isempty(src.mirParams.inharmonicity)
+                if (src.mirParams.inhmarmonicity > 0.3) && (randi(10) == 1)
                     src.resample(64,0.8,2);
                 end
             end
