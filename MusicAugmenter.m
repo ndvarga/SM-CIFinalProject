@@ -56,7 +56,7 @@ classdef MusicAugmenter
 
             src.sampleRate = sampleRate;
             src.maxAudioLength = maxAudioLengthSeconds;
-            src.noiseGenerator = dsp.ColoredNoise(Color="custom", BoundedOutput=true, SamplesPerFrame=samplesPerFrame, InverseFrequencyPower=0);
+            src.noiseGenerator = dsp.ColoredNoise(Color="custom", BoundedOutput=true, SamplesPerFrame=samplesPerFrame, InverseFrequencyPower=0.1);
             src.augmenter = audioDataAugmenter;
             delayEffect = audioexample.Echo;
             delayEffect.Delay = 1.0;
