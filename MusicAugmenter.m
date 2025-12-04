@@ -31,7 +31,8 @@ classdef MusicAugmenter
         midiMap % unused rn
         tempAudio % basically a buffer to hold our processed audio
 
-        % TODO: add historical range, normalize to it
+        mirMax = mirStruct("brightness",[],"novelty",[],"inharmonicity",[])
+        mirMin = mirStruct("brightness",[],"novelty",[],"inharmonicity",[])
     end
 
     methods (Access = public)
@@ -117,8 +118,8 @@ classdef MusicAugmenter
             
             % TODO: use historical maximum
             % resample based on roughness and time
-            if ~isempty(src.mirParams.inharmonicity)
-                if (src.mirParams.inhmarmonicity > 0.3) && (randi(10) == 1)
+            if ~isempty(src.mirParams.inharmonicity) & ~isempty(src.mirMax.inharmonicity)
+                if (src.mirParams.inharmonicity > scr.mirMax.inharmonicity) && (randi(10) == 1)
                     src.resample(64,0.8,2);
                 end
             end
@@ -141,8 +142,9 @@ classdef MusicAugmenter
             
             % TODO: map to historical range
             % maps roughness from its input range to [0,1]
-            if ~isempty(src.mirParams.roughness)
-                mapped_roughness = src.map(src.mirParams.roughness, 0, 5000, 0, 1);
+            if ~isempty(src.mirParams.roughness) && ~isempty(src.mirMax.roughness)
+                mapped_roughness = src.map(src.mirParams.roughness, ...
+                    src.mirMin.roughness, src.mirMax.roughness, 0, 1);
             else
                 mapped_roughness = 0;
             end
@@ -290,8 +292,36 @@ classdef MusicAugmenter
             if ~isa(mirParams,'mirStruct')
                 raise('mirParams is not type mirStruct!')
             end
+
+            if isEmpty(src.mirMax.roughness)
+                % just set max to current
+                src.mirMax = mirParams;
+
+                src.mirMin.roughness = 1;
+                src.mirMin.brightness = 1;
+                src.mirMin.inharmonicity = 1;
+            else
+                % unpack mirParams
+                new_roughness = mirParams.roughness;
+                new_inharmonicity = mirParams.inharmonicity;
+                new_brightness = mirParams.brightness;
+
+
+                src.mirMax.roughness = max(src.mirMax.roughness, new_roughness);
+                src.mirMax.inharmonicity = max(src.mirMax.inharmonicity, new_inharmonicity);
+                src.mirMax.brightness = max(src.mirMax.brightness, new_brightness);
+                
+                src.mirMin.roughness = min(src.mirMin.roughness, new_roughness);
+                src.mirMin.inharmonicity = min(src.mirMin.inharmonicity, new_inharmonicity);
+                src.mirMin.brightness = min(src.mirMin.brightness, new_brightness);
+            end
+                         
             src.mirParams = mirParams; % Update the MIR parameters
+
+
         end
+
+
 
         function audio_out = getAudioOut(src)
             audio_out = src.tempAudio;
