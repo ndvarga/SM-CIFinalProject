@@ -1,0 +1,273 @@
+classdef  mirtoolboxWizard < handle
+
+    %   mirtoolboxWizard Real-time virtual listener
+    %   A real-time virtual listener that uses MIRToolbox to assess user
+    %   defined musical parameters within an input audio signal
+
+    %{
+        mirtoolboxWizard
+        Copyright 2025 (c) Aston K McCullough
+        Updated for MUST 5510 (v10012025)
+        Northeastern University
+
+        Edited NV 12325
+
+
+        original version:
+        mirtoolboxWizard
+        Copyright 2025 (c) Aston K McCullough
+        MUST 5973
+        Northeastern University
+
+    %}
+
+
+    properties (Access = public)
+        inharmonicity
+        roughness
+        brightness
+        a % MIRToolbox audio signal
+    end
+
+    properties (Access = private)
+        tempBuffer
+    end
+
+    events
+        updateJudgement
+    end
+
+    methods
+
+        function obj = mirtoolboxWizard(audio)
+            %mirtoolboxWizard
+            % Construct MIRToolbox object
+            if size(audio,2) > 1
+                audio = mean(audio,2);
+            end
+            obj.a = audio;
+            addlistener(obj,'updateJudgement',@newJudgement);
+        end
+
+        function src = step(src,audio)
+
+            % concatenating audio
+            if size(src.a,2) == 1 && size(audio,2) == 2
+                audio = mean(audio,2);
+            end
+
+            if isempty(src.a)
+
+                src.a = audio;
+
+            elseif size(src.a,1) <= 44100 * 15
+
+                src.a = cat(1,src.a,audio);
+
+            else
+
+                src.a = audio;
+
+            end
+
+
+        end
+
+        function [] = query(obj)
+
+            notify(obj,'updateJudgement');
+
+        end
+
+        function src = newJudgement(src,~)
+
+            % persistent anonFunc
+            % 
+            % if isempty(anonFunc)
+            anonFunc = @(newValue1,newValue2,newValue3) ...
+                nestedAnon(src,newValue1,newValue2,newValue3);
+            % end
+
+            F = parfeval(@gatherJudgements,3,src);
+
+            FOut = afterEach(F(end),anonFunc,1);
+
+            if ~isempty(FOut.OutputArguments{:})
+                src = FOut.OutputArguments{:}{:};
+            end
+
+        end
+
+        function src = nestedAnon(src,newValue1,newValue2,newValue3)
+
+            try
+
+                A1 = get(newValue1,"Data"); A1 = cellReveal(src,A1);
+                try
+                    A1 = movingAverageFilter(src,cat(1,src.inharmonicity,A1'));
+                    src.inharmonicity = cat(1,src.inharmonicity,A1(end));
+
+                catch
+                    src.inharmonicity = 0;
+                end
+
+
+                A2 = get(newValue2,"Data"); A2 = cellReveal(src,A2);
+                A2 = movingAverageFilter(src,cat(1,src.roughness,A2'));
+                src.roughness = cat(1,src.roughness,A2(end));
+                
+                
+                A3 = get(newValue3,"Data"); A3 = cellReveal(src,A3);
+                A3 = movingAverageFilter(src,cat(1,src.brightness,A3));
+                src.brightness = cat(1,src.brightness,A3(end));
+
+
+            catch 
+                
+            end
+
+        end
+
+        function [novelty,roughness,inharmonicity,src] = gatherJudgements(src,~)
+
+            try
+
+                tempMIRObject = miraudio(sum(src.a,2));
+                novelty = mirnovelty(tempMIRObject);
+                roughness = mirroughness(tempMIRObject);
+                inharmonicity = mirinharmonicity(tempMIRObject);
+
+            catch 
+
+                novelty = NaN;
+                roughness = NaN;
+                inharmonicity = NaN;
+            end
+
+        end
+
+        function openedCell = cellReveal(~,nestedCells)
+
+            while iscell(nestedCells)
+
+                nestedCells = nestedCells{:};
+
+            end
+
+            openedCell = nestedCells;
+
+        end
+
+        function keyOut = unpackKey(src,keyStruct)
+
+            persistent noteList
+
+            keyOut = struct();
+
+            if isempty(noteList)
+
+                noteList = {'C' 'C#', 'D' 'D#' 'E', 'F', 
+                    'F#' 'G', 'G#' 'A' 'A#' 'B'};
+            end
+
+            if ~isempty(src.brightness)
+
+                tempNoteValue = cellReveal(src,keyStruct.key1Out);
+                keyOut.value = cat(1,[src.brightness.value],tempNoteValue);
+
+                tempMajMinVec = cellReveal(src,keyStruct.key2Out);
+
+                % index note
+                tempNote = noteList(round(tempNoteValue));
+
+                % determine if major or minor key
+                % 1 = major; 0 = minor
+                majorORminor = (tempMajMinVec(tempNoteValue,:,:,1) > ...
+                    tempMajMinVec(tempNoteValue,:,:,2));
+
+                switch majorORminor
+
+                    case true
+
+                       %  keyOut.note =
+                       %  cat(2,[src.key.note],strcat(tempNote,'M')); old
+                       %  code
+                       
+                       keyOut.note = cat(1,[src.brightness.note],strcat(tempNote,'M'));
+                        
+
+                    case false
+
+                        keyOut.note = cat(1,[src.brightness.note],...
+                            strcat(tempNote,'m'));
+                end
+                
+
+            else
+
+                tempNoteValue = cellReveal(src,keyStruct.key1Out);
+                tempMajMinVec = cellReveal(src,keyStruct.key2Out);
+
+                % store current numeric value for key
+                keyOut.value = tempNoteValue;
+
+                % index note
+                tempNote = noteList(tempNoteValue);
+
+                % determine if major or minor key
+                % 1 = major; 0 = minor
+                majorORminor = (tempMajMinVec(tempNoteValue,:,:,1) > ...
+                    tempMajMinVec(tempNoteValue,:,:,2));
+
+                switch majorORminor
+
+                    case true
+
+                        keyOut.note = strcat(tempNote,'M');
+
+                    case false
+
+                        keyOut.note = strcat(tempNote,'m');
+                end
+                
+            end
+
+        end
+
+        function outDAT = movingAverageFilter(~,inDAT)
+
+            virtualListenerUpdatePeriod = 6; % seconds
+
+            try
+
+                if numel(inDAT) > virtualListenerUpdatePeriod
+
+                    coeffperiodListen = ones(1, ...
+                        virtualListenerUpdatePeriod)/virtualListenerUpdatePeriod;
+
+                    temp = inDAT(~ismissing(inDAT));
+                    filterDAT = filter(coeffperiodListen, 1, ...
+                        temp);
+
+                    outDAT = filterDAT(end);
+
+                else
+
+                    outDAT = inDAT(end);
+
+                end
+
+            catch ME
+
+                outDAT = ME
+                
+            end
+
+        end
+
+
+
+    end
+
+
+end
