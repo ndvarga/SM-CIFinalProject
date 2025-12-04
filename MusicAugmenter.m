@@ -132,8 +132,8 @@ classdef MusicAugmenter
             % function which uses the dsp.Noise to generate noise for the
             % audio based on the mirParams.roughness parameter
             
-            % TODO: NO MORE CONST
             
+            %TODO: add roughness
                   
             if ~isempty(src.mirParams.brightness)
                 brightness = src.mirParams.brightness;
