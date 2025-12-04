@@ -140,7 +140,6 @@ classdef MusicAugmenter
             
           
             
-            % TODO: map to historical range
             % maps roughness from its input range to [0,1]
             if ~isempty(src.mirParams.roughness) && ~isempty(src.mirMax.roughness)
                 mapped_roughness = src.map(src.mirParams.roughness, ...
