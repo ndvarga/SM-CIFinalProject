@@ -1,4 +1,4 @@
-classdef  mirtoolboxWizard < handle
+classdef  mirtoolboxWizard_old < handle
 
     %   mirtoolboxWizard Real-time virtual listener
     %   A real-time virtual listener that uses MIRToolbox to assess user
@@ -39,7 +39,7 @@ classdef  mirtoolboxWizard < handle
 
     methods
 
-        function obj = mirtoolboxWizard(audio)
+        function obj = mirtoolboxWizard_old(audio)
             %mirtoolboxWizard
             % Construct MIRToolbox object
             if size(audio,2) > 1

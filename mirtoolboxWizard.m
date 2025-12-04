@@ -52,6 +52,9 @@ classdef  mirtoolboxWizard < handle
             % concatenating audio
             if size(src.a,2) == 1 && size(audio,2) == 2
                 audio = mean(audio,2);
+
+            elseif size(src.a,2) == 2 && size(audio,2) == 1
+                src.a = mean(src.a,2);
             end
 
             if isempty(src.a)
@@ -92,7 +95,7 @@ classdef  mirtoolboxWizard < handle
 
             try
 
-                A1 = get(newValue1,"Data"); A1 = cellReveal(src,A1);
+                A1 = get(newValue1,"Data"); A1 = cellReveal(src,A1); A1 = mean(A1,2);
                 A1 = movingAverageFilter(src,cat(1,src.roughness,A1));
                 src.roughness = cat(1,src.roughness,A1(end));
 
