@@ -155,7 +155,7 @@ classdef MusicAugmenter
             
             noisy_audio = noise .* audio;
   
-
+            % normalize noisy audio 
             if max(noisy_audio) > 1
                 noisy_audio = noisy_audio ./ max(noisy_audio);
             end
