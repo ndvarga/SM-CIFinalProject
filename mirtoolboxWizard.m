@@ -20,9 +20,9 @@ classdef  mirtoolboxWizard < handle
 
 
     properties (Access = public)
-        novelty
         roughness
         brightness
+        inharmonicity
         a % MIRToolbox audio object
 
     end
@@ -93,16 +93,16 @@ classdef  mirtoolboxWizard < handle
             try
 
                 A1 = get(newValue1,"Data"); A1 = cellReveal(src,A1);
-                A1 = movingAverageFilter(src,cat(1,src.novelty,A1));
-                src.novelty = cat(1,src.novelty,A1(end));
+                A1 = movingAverageFilter(src,cat(1,src.roughness,A1));
+                src.roughness = cat(1,src.roughness,A1(end));
 
                 A2 = get(newValue2,"Data"); A2 = cellReveal(src,A2);
-                A2 = movingAverageFilter(src,cat(1,src.roughness,A2));
-                src.roughness = cat(1,src.roughness,A2(end));
+                A2 = movingAverageFilter(src,cat(1,src.brightness,A2));
+                src.brightness = cat(1,src.brightness,A2(end));
 
                 A3 = get(newValue3,"Data"); A3 = cellReveal(src,A3);
-                A3 = movingAverageFilter(src,cat(1,src.brightness,A3));
-                src.brightness = cat(1,src.brightness,A3(end));
+                A3 = movingAverageFilter(src,cat(1,src.inharmonicity,A3));
+                src.inharmonicity = cat(1,src.inharmonicity,A3(end));
 
             catch 
 
@@ -110,20 +110,20 @@ classdef  mirtoolboxWizard < handle
 
         end
 
-        function [novelty,roughness,brightness] = gatherJudgements(src,~)
+        function [roughness,brightness,inharmonicity] = gatherJudgements(src,~)
 
             try
 
                 tempMIRObject = miraudio(sum(src.a,2));
-                novelty = mirnovelty(tempMIRObject);
                 roughness = mirroughness(tempMIRObject);
                 brightness = mirbrightness(tempMIRObject);
+                inharmonicity = mirinharmonicity(tempMIRObject);
 
             catch
 
-                novelty = NaN;
                 roughness = NaN;
-                brightness  = NaN;
+                brightness = NaN;
+                inharmonicity  = NaN;
 
             end
 
