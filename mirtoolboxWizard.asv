@@ -1,16 +1,16 @@
-classdef  mirtoolboxWizard_old < handle
+classdef  mirtoolboxWizard < handle
 
     %   mirtoolboxWizard Real-time virtual listener
     %   A real-time virtual listener that uses MIRToolbox to assess user
     %   defined musical parameters within an input audio signal
 
     %{
+        edited NV 12/4/25
+            
         mirtoolboxWizard
         Copyright 2025 (c) Aston K McCullough
         Updated for MUST 5510 (v10012025)
         Northeastern University
-
-        Edited NV 12325
 
 
         original version:
@@ -23,9 +23,9 @@ classdef  mirtoolboxWizard_old < handle
 
 
     properties (Access = public)
-        inharmonicity
+        novelty
         roughness
-        brightness
+        inharmonicity
         a % MIRToolbox audio signal
     end
 
@@ -39,7 +39,7 @@ classdef  mirtoolboxWizard_old < handle
 
     methods
 
-        function obj = mirtoolboxWizard_old(audio)
+        function obj = mirtoolboxWizard(audio)
             %mirtoolboxWizard
             % Construct MIRToolbox object
             if size(audio,2) > 1
@@ -104,11 +104,11 @@ classdef  mirtoolboxWizard_old < handle
 
                 A1 = get(newValue1,"Data"); A1 = cellReveal(src,A1);
                 try
-                    A1 = movingAverageFilter(src,cat(1,src.inharmonicity,A1'));
-                    src.inharmonicity = cat(1,src.inharmonicity,A1(end));
+                    A1 = movingAverageFilter(src,cat(1,src.novelty,A1'));
+                    src.novelty = cat(1,src.novelty,A1(end));
 
                 catch
-                    src.inharmonicity = 0;
+                    src.novelty = 0;
                 end
 
 
@@ -118,8 +118,8 @@ classdef  mirtoolboxWizard_old < handle
                 
                 
                 A3 = get(newValue3,"Data"); A3 = cellReveal(src,A3);
-                A3 = movingAverageFilter(src,cat(1,src.brightness,A3));
-                src.brightness = cat(1,src.brightness,A3(end));
+                A3 = movingAverageFilter(src,cat(1,src.inharmonicity,A3));
+                src.inharmonicity = cat(1,src.inharmonicity,A3(end));
 
 
             catch 
@@ -128,20 +128,20 @@ classdef  mirtoolboxWizard_old < handle
 
         end
 
-        function [novelty,roughness,inharmonicity,src] = gatherJudgements(src,~)
+        function [novelty,roughness,brightness,src] = gatherJudgements(src,~)
 
             try
 
                 tempMIRObject = miraudio(sum(src.a,2));
                 novelty = mirnovelty(tempMIRObject);
                 roughness = mirroughness(tempMIRObject);
-                inharmonicity = mirinharmonicity(tempMIRObject);
+                brightness = mirbrightness(tempMIRObject);
 
             catch 
 
                 novelty = NaN;
                 roughness = NaN;
-                inharmonicity = NaN;
+                brightness = NaN;
             end
 
         end
@@ -170,10 +170,10 @@ classdef  mirtoolboxWizard_old < handle
                     'F#' 'G', 'G#' 'A' 'A#' 'B'};
             end
 
-            if ~isempty(src.brightness)
+            if ~isempty(src.inharmonicity)
 
                 tempNoteValue = cellReveal(src,keyStruct.key1Out);
-                keyOut.value = cat(1,[src.brightness.value],tempNoteValue);
+                keyOut.value = cat(1,[src.inharmonicity.value],tempNoteValue);
 
                 tempMajMinVec = cellReveal(src,keyStruct.key2Out);
 
@@ -193,12 +193,12 @@ classdef  mirtoolboxWizard_old < handle
                        %  cat(2,[src.key.note],strcat(tempNote,'M')); old
                        %  code
                        
-                       keyOut.note = cat(1,[src.brightness.note],strcat(tempNote,'M'));
+                       keyOut.note = cat(1,[src.inharmonicity.note],strcat(tempNote,'M'));
                         
 
                     case false
 
-                        keyOut.note = cat(1,[src.brightness.note],...
+                        keyOut.note = cat(1,[src.inharmonicity.note],...
                             strcat(tempNote,'m'));
                 end
                 

@@ -1,15 +1,12 @@
 classdef  mirtoolboxWizard < handle
-
-    %   mirtoolboxWizard Real-time virtual listener
+    %mirtoolboxWizard Real-time virtual listener
     %   A real-time virtual listener that uses MIRToolbox to assess user
     %   defined musical parameters within an input audio signal
 
     %{
-        edited NV 12/4/25
-            
         mirtoolboxWizard
         Copyright 2025 (c) Aston K McCullough
-        Updated for MUST 5510 (v10012025)
+        Updated for MUST 5510 (v09172025)
         Northeastern University
 
 
@@ -23,14 +20,16 @@ classdef  mirtoolboxWizard < handle
 
 
     properties (Access = public)
-        novelty
         roughness
+        brightness
         inharmonicity
-        a % MIRToolbox audio signal
+        a % MIRToolbox audio object
+
     end
 
     properties (Access = private)
         tempBuffer
+
     end
 
     events
@@ -42,18 +41,20 @@ classdef  mirtoolboxWizard < handle
         function obj = mirtoolboxWizard(audio)
             %mirtoolboxWizard
             % Construct MIRToolbox object
-            if size(audio,2) > 1
-                audio = mean(audio,2);
-            end
             obj.a = audio;
             addlistener(obj,'updateJudgement',@newJudgement);
         end
 
         function src = step(src,audio)
 
+            %METHOD1 Summary of this method goes here
+
             % concatenating audio
             if size(src.a,2) == 1 && size(audio,2) == 2
                 audio = mean(audio,2);
+
+            elseif size(src.a,2) == 2 && size(audio,2) == 1
+                src.a = mean(src.a,2);
             end
 
             if isempty(src.a)
@@ -79,69 +80,54 @@ classdef  mirtoolboxWizard < handle
 
         end
 
-        function src = newJudgement(src,~)
-
-            % persistent anonFunc
-            % 
-            % if isempty(anonFunc)
-            anonFunc = @(newValue1,newValue2,newValue3) ...
-                nestedAnon(src,newValue1,newValue2,newValue3);
-            % end
+        function src = newJudgement(src,event)
 
             F = parfeval(@gatherJudgements,3,src);
 
-            FOut = afterEach(F(end),anonFunc,1);
+            anonFunc = @(newValue1,newValue2,newValue3) ...
+                nestedAnon(src,newValue1,newValue2,newValue3);
 
-            if ~isempty(FOut.OutputArguments{:})
-                src = FOut.OutputArguments{:}{:};
-            end
+             afterEach(F(end),anonFunc,0);
 
         end
 
-        function src = nestedAnon(src,newValue1,newValue2,newValue3)
+        function nestedAnon(src,newValue1,newValue2,newValue3)
 
             try
 
-                A1 = get(newValue1,"Data"); A1 = cellReveal(src,A1);
-                try
-                    A1 = movingAverageFilter(src,cat(1,src.novelty,A1'));
-                    src.novelty = cat(1,src.novelty,A1(end));
-
-                catch
-                    src.novelty = 0;
-                end
-
+                A1 = get(newValue1,"Data"); A1 = cellReveal(src,A1); A1 = mean(A1,2);
+                A1 = movingAverageFilter(src,cat(1,src.roughness,A1));
+                src.roughness = cat(1,src.roughness,A1(end));
 
                 A2 = get(newValue2,"Data"); A2 = cellReveal(src,A2);
-                A2 = movingAverageFilter(src,cat(1,src.roughness,A2'));
-                src.roughness = cat(1,src.roughness,A2(end));
-                
-                
+                A2 = movingAverageFilter(src,cat(1,src.brightness,A2));
+                src.brightness = cat(1,src.brightness,A2(end));
+
                 A3 = get(newValue3,"Data"); A3 = cellReveal(src,A3);
                 A3 = movingAverageFilter(src,cat(1,src.inharmonicity,A3));
                 src.inharmonicity = cat(1,src.inharmonicity,A3(end));
 
-
             catch 
-                
+
             end
 
         end
 
-        function [novelty,roughness,inharmonicity,src] = gatherJudgements(src,~)
+        function [roughness,brightness,inharmonicity] = gatherJudgements(src,~)
 
             try
 
                 tempMIRObject = miraudio(sum(src.a,2));
-                novelty = mirnovelty(tempMIRObject);
                 roughness = mirroughness(tempMIRObject);
+                brightness = mirbrightness(tempMIRObject);
                 inharmonicity = mirinharmonicity(tempMIRObject);
 
-            catch 
+            catch
 
-                novelty = NaN;
                 roughness = NaN;
-                inharmonicity = NaN;
+                brightness = NaN;
+                inharmonicity  = NaN;
+
             end
 
         end
@@ -158,82 +144,6 @@ classdef  mirtoolboxWizard < handle
 
         end
 
-        function keyOut = unpackKey(src,keyStruct)
-
-            persistent noteList
-
-            keyOut = struct();
-
-            if isempty(noteList)
-
-                noteList = {'C' 'C#', 'D' 'D#' 'E', 'F', 
-                    'F#' 'G', 'G#' 'A' 'A#' 'B'};
-            end
-
-            if ~isempty(src.inharmonicity)
-
-                tempNoteValue = cellReveal(src,keyStruct.key1Out);
-                keyOut.value = cat(1,[src.inharmonicity.value],tempNoteValue);
-
-                tempMajMinVec = cellReveal(src,keyStruct.key2Out);
-
-                % index note
-                tempNote = noteList(round(tempNoteValue));
-
-                % determine if major or minor key
-                % 1 = major; 0 = minor
-                majorORminor = (tempMajMinVec(tempNoteValue,:,:,1) > ...
-                    tempMajMinVec(tempNoteValue,:,:,2));
-
-                switch majorORminor
-
-                    case true
-
-                       %  keyOut.note =
-                       %  cat(2,[src.key.note],strcat(tempNote,'M')); old
-                       %  code
-                       
-                       keyOut.note = cat(1,[src.inharmonicity.note],strcat(tempNote,'M'));
-                        
-
-                    case false
-
-                        keyOut.note = cat(1,[src.inharmonicity.note],...
-                            strcat(tempNote,'m'));
-                end
-                
-
-            else
-
-                tempNoteValue = cellReveal(src,keyStruct.key1Out);
-                tempMajMinVec = cellReveal(src,keyStruct.key2Out);
-
-                % store current numeric value for key
-                keyOut.value = tempNoteValue;
-
-                % index note
-                tempNote = noteList(tempNoteValue);
-
-                % determine if major or minor key
-                % 1 = major; 0 = minor
-                majorORminor = (tempMajMinVec(tempNoteValue,:,:,1) > ...
-                    tempMajMinVec(tempNoteValue,:,:,2));
-
-                switch majorORminor
-
-                    case true
-
-                        keyOut.note = strcat(tempNote,'M');
-
-                    case false
-
-                        keyOut.note = strcat(tempNote,'m');
-                end
-                
-            end
-
-        end
-
         function outDAT = movingAverageFilter(~,inDAT)
 
             virtualListenerUpdatePeriod = 6; % seconds
@@ -245,9 +155,11 @@ classdef  mirtoolboxWizard < handle
                     coeffperiodListen = ones(1, ...
                         virtualListenerUpdatePeriod)/virtualListenerUpdatePeriod;
 
+                    frameSize = max([virtualListenerUpdatePeriod,numel(coeffperiodListen)])-1;
                     temp = inDAT(~ismissing(inDAT));
                     filterDAT = filter(coeffperiodListen, 1, ...
-                        temp);
+                        temp);%, ...
+                        %temp(end-(frameSize-1):end));
 
                     outDAT = filterDAT(end);
 
