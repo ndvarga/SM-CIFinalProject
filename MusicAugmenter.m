@@ -82,7 +82,7 @@ classdef MusicAugmenter
             end
             
             [audio_rows, audio_columns] = size(audio);
-
+            
             % Ensure the size of the audio input is the same as
             % samplesPerFrame
             if audio_rows < src.samplesPerFrame
