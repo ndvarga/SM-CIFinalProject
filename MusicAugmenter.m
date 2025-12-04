@@ -30,6 +30,8 @@ classdef MusicAugmenter
         maxAudioLength % The maximal length of src.a in seconds
         midiMap % unused rn
         tempAudio % basically a buffer to hold our processed audio
+
+        % TODO: add historical range, normalize to it
     end
 
     methods (Access = public)
@@ -133,33 +135,27 @@ classdef MusicAugmenter
             % audio based on the mirParams.roughness parameter
             
             
-            %TODO: add roughness
-                  
-            if ~isempty(src.mirParams.brightness)
-                brightness = src.mirParams.brightness;
+          
+            
+            % TODO: map to historical range
+            % maps roughness from its input range to [0,1]
+            if ~isempty(src.mirParams.roughness)
+                mapped_roughness = src.map(src.mirParams.roughness, 0, 5000, 0, 1);
             else
-                brightness = 1;
-           
+                mapped_roughness = 0;
             end
             
-            %     % maps roughness from its input range to [0,1]
-            %     mapped_roughness = src.map(src.mirParams.roughness, 0, 5000, 0, 1);
-            % else
-            %     mapped_roughness = 0;
-            % end
-            
-            % generate some noise for each channel
-            
+            % generate some noise
             noise = src.noiseGenerator.step();
+
             % scale noise by mapped roughness
-            noise = noise * brightness * noiseScale * 3;                
+            noise = noise * mapped_roughness * noiseScale * 3;                
 
             % add noise to audio signal
-            % TODO: might be fun to multiply it
             
             noisy_audio = noise .* audio;
   
-
+            % normalize noisy audio 
             if max(noisy_audio) > 1
                 noisy_audio = noisy_audio ./ max(noisy_audio);
             end

@@ -23,7 +23,7 @@ classdef  mirtoolboxWizard < handle
 
 
     properties (Access = public)
-        novelty
+        inharmonicity
         roughness
         brightness
         a % MIRToolbox audio signal
@@ -104,11 +104,11 @@ classdef  mirtoolboxWizard < handle
 
                 A1 = get(newValue1,"Data"); A1 = cellReveal(src,A1);
                 try
-                    A1 = movingAverageFilter(src,cat(1,src.novelty,A1'));
-                    src.novelty = cat(1,src.novelty,A1(end));
+                    A1 = movingAverageFilter(src,cat(1,src.inharmonicity,A1'));
+                    src.inharmonicity = cat(1,src.inharmonicity,A1(end));
 
                 catch
-                    src.novelty = 0;
+                    src.inharmonicity = 0;
                 end
 
 
@@ -128,20 +128,20 @@ classdef  mirtoolboxWizard < handle
 
         end
 
-        function [novelty,roughness,brightness,src] = gatherJudgements(src,~)
+        function [novelty,roughness,inharmonicity,src] = gatherJudgements(src,~)
 
             try
 
                 tempMIRObject = miraudio(sum(src.a,2));
                 novelty = mirnovelty(tempMIRObject);
                 roughness = mirroughness(tempMIRObject);
-                brightness = mirbrightness(tempMIRObject);
+                inharmonicity = mirinharmonicity(tempMIRObject);
 
             catch 
 
                 novelty = NaN;
                 roughness = NaN;
-                brightness = NaN;
+                inharmonicity = NaN;
             end
 
         end
