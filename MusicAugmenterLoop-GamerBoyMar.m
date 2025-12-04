@@ -30,13 +30,11 @@ myAudio = audioread("being a girl [2044987124].mp3", [1,10*sr]);
 % hardcoded fo today
 % Setup audio output
 audio_out = audioDeviceWriter("SampleRate",sr,...
-    "BufferSize",samplesPerFrame, "Device","Speakers (Realtek(R) Audio)",...
-    "Driver","DirectSound");
+    "BufferSize",samplesPerFrame);
 
 % Setup audio input
 if contains(input_info(2).Name, "Windows DirectSound")
-    audioReader = audioDeviceReader("SampleRate",sr, "Device", "Microphone Array (Intel® Smart Sound Technology for Digital Microphones)",...
-        "Driver","DirectSound", "SamplesPerFrame",samplesPerFrame);
+    audioReader = audioDeviceReader("SampleRate",sr,"SamplesPerFrame",samplesPerFrame);
 end
 
 % hardcode some mir parameters
@@ -44,8 +42,7 @@ mirParams = mirStruct('roughness', 10.0, 'novelty', 0.8, ...
     'inharmonicity', 0.4, 'brightness', 1, 'pulseClarity', 0.6);
 
 % construct a music augmenter
-augment = MusicAugmenter(myAudio(sr*10:sr*12),sr,8,samplesPerFrame, mirParams);
-
+augment = MusicAugmenter(myAudio(sr*10:sr*12),sr,8,samplesPerFrame); %ZM removed mirparams
 
 % Create a figure with a stop button
 fig = figure;
@@ -60,6 +57,9 @@ while ishandle(fig)
     % augment that audio, get the augment object and the processed audio
     % back
     [augment, moreAudio] = augment.step(someAudio);
+    
+    augment.delayEffect.WetDryMix = rand(); %ZM
+
     % output the augmented audio
     audio_out.step(moreAudio);
     drawnow;
