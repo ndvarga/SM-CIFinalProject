@@ -122,6 +122,10 @@ classdef MusicAugmenter
                 if (src.mirParams.inharmonicity > scr.mirMax.inharmonicity) && (randi(10) == 1)
                     src.resample(64,0.8,2);
                 end
+            else
+                if randi(100) == 1
+                    src.resample(32, 0.1, 1);
+                end
             end
             % add noise
             noiseScale = 0.1;
@@ -145,7 +149,7 @@ classdef MusicAugmenter
                 mapped_roughness = src.map(src.mirParams.roughness, ...
                     src.mirMin.roughness, src.mirMax.roughness, 0, 1);
             else
-                mapped_roughness = 0;
+                mapped_roughness = rand(1);
             end
             
             % generate some noise
