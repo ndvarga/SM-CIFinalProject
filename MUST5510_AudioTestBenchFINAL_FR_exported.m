@@ -71,9 +71,7 @@ classdef MUST5510_AudioTestBenchFINAL_FR_exported < matlab.apps.AppBase
 
         midiMap % a mapping of midi notes to keyboard values
 
-        soundShareObj % create object to connect to Backend application
-
-        SoundSharePath
+        SoundSharePath % used to pass info from binary file
 
         audioSettingsApp
 
