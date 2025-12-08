@@ -119,12 +119,12 @@ classdef MusicAugmenter
             % TODO: use historical maximum
             % resample based on roughness and time
             if ~isempty(src.mirParams.inharmonicity) & ~isempty(src.mirMax.inharmonicity)
-                if (src.mirParams.inharmonicity > scr.mirMax.inharmonicity) && (randi(10) == 1)
+                if (src.mirParams.inharmonicity > src.mirMax.inharmonicity) && (randi(10) == 1)
                     src.resample(64,0.8,2);
                 end
             end
             % add noise
-            noiseScale = 0.1;
+            noiseScale = 1;
             audio = src.addNoise(audio, noiseScale);
             % set the output buffer value
             src.tempAudio = audio;
@@ -152,11 +152,11 @@ classdef MusicAugmenter
             noise = src.noiseGenerator.step();
 
             % scale noise by mapped roughness
-            noise = noise * mapped_roughness * noiseScale * 3;                
+            noise = noise * mapped_roughness * noiseScale;             
 
             % add noise to audio signal
             
-            noisy_audio = noise .* audio;
+            noisy_audio = noise.*audio;
   
             % normalize noisy audio 
             if max(noisy_audio) > 1

@@ -4,8 +4,6 @@ classdef mirStruct
     properties (Access=public)
         roughness {mustBeFloat}; % range [0,500]?
         inharmonicity {mustBeFloat}; % Range[0,1]
-        novelty {mustBeFloat}; % not sure of range
-        pulseClarity
         brightness
     end
     methods
