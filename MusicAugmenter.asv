@@ -56,7 +56,7 @@ classdef MusicAugmenter
 
             src.sampleRate = sampleRate;
             src.maxAudioLength = maxAudioLengthSeconds;
-            src.noiseGenerator = dsp.ColoredNoise(Color="custom", BoundedOutput=true, SamplesPerFrame=samplesPerFrame, InverseFrequencyPower=0);
+            src.noiseGenerator = dsp.ColoredNoise(Color="custom", BoundedOutput=true, SamplesPerFrame=samplesPerFrame, InverseFrequencyPower=0.1);
             src.augmenter = audioDataAugmenter;
             delayEffect = audioexample.Echo;
             delayEffect.Delay = 1.0;
@@ -82,7 +82,7 @@ classdef MusicAugmenter
             end
             
             [audio_rows, audio_columns] = size(audio);
-
+            
             % Ensure the size of the audio input is the same as
             % samplesPerFrame
             if audio_rows < src.samplesPerFrame
@@ -140,9 +140,8 @@ classdef MusicAugmenter
             
           
             
-            % TODO: map to historical range
             % maps roughness from its input range to [0,1]
-            if ~isempty(src.mirParams.roughness) && 
+            if ~isempty(src.mirParams.roughness) && ~isempty(src.mirMax.roughness)
                 mapped_roughness = src.map(src.mirParams.roughness, ...
                     src.mirMin.roughness, src.mirMax.roughness, 0, 1);
             else
