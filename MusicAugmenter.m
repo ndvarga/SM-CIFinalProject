@@ -20,7 +20,7 @@ classdef MusicAugmenter
         noiseGenerator % dsp.ColoredNoise object
         augmenter % audioDataAugmenter object
         delayEffect % audioexample delay
-        mirParams = mirStruct("brightness",[],"novelty",[],"inharmonicity",[])
+        mirParams = mirStruct("brightness",[],"roughness",[],"inharmonicity",[])
         
     end
     
@@ -31,8 +31,8 @@ classdef MusicAugmenter
         midiMap % unused rn
         tempAudio % basically a buffer to hold our processed audio
 
-        mirMax = mirStruct("brightness",[],"novelty",[],"inharmonicity",[])
-        mirMin = mirStruct("brightness",[],"novelty",[],"inharmonicity",[])
+        mirMax = mirStruct("brightness",[],"roughness",[],"inharmonicity",[])
+        mirMin = mirStruct("brightness",[],"roughness",[],"inharmonicity",[])
     end
 
     methods (Access = public)
@@ -142,8 +142,12 @@ classdef MusicAugmenter
             
             % maps roughness from its input range to [0,1]
             if ~isempty(src.mirParams.roughness) && ~isempty(src.mirMax.roughness)
-                mapped_roughness = src.map(src.mirParams.roughness, ...
+                if src.mirParams.roughness > 300
+                    mapped_roughness = src.map(src.mirParams.roughness, ...
                     src.mirMin.roughness, src.mirMax.roughness, 0, 1);
+                else
+                    mapped_roughness = 0;
+                end
             else
                 mapped_roughness = 0;
             end
@@ -203,7 +207,7 @@ classdef MusicAugmenter
                 % more chaotic with an increase in inharmonicity
 
                 if isa(src.mirParams, "mirStruct")
-                    randomness = rand(1) * src.mirParams.novelty*3;
+                    randomness = rand(1) * src.mirParams.brightness*3;
                 else
                     randomness = rand(1);
                 end
