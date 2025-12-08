@@ -142,7 +142,7 @@ classdef MusicAugmenter
             
             % maps roughness from its input range to [0,1]
             if ~isempty(src.mirParams.roughness) && ~isempty(src.mirMax.roughness)
-                if src.mirParams.roughness > 300
+                if src.mirParams.roughness > 10
                     mapped_roughness = src.map(src.mirParams.roughness, ...
                     src.mirMin.roughness, src.mirMax.roughness, 0, 1);
                 else
