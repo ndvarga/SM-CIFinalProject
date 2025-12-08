@@ -292,7 +292,7 @@ classdef MusicAugmenter
                 raise('mirParams is not type mirStruct!')
             end
 
-            if isEmpty(src.mirMax.roughness)
+            if isempty(src.mirMax.roughness)
                 % just set max to current
                 src.mirMax = mirParams;
 
