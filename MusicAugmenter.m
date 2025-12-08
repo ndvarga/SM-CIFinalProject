@@ -10,7 +10,7 @@
 %}
 
 % removed mirparams in constructor 11/20/2025
-% TODO: stereo processing?
+% Changed mirParams 12/8/2025
 
 classdef MusicAugmenter
 % Use sound or soundsc to read out a certain number of frames
