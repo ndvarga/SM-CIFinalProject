@@ -1,4 +1,4 @@
-classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
+classdef MUST5510_AudioTestBenchFINAL_FR_exported < matlab.apps.AppBase
 
     % Properties that correspond to app components
     properties (Access = public)
@@ -6,6 +6,7 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
         Menu                          matlab.ui.container.Menu
         ImportAudioFileMenu           matlab.ui.container.Menu
         AudioSettingsMenu             matlab.ui.container.Menu
+        FindBackend                   matlab.ui.container.Menu
         BackendAppStatusLamp          matlab.ui.control.Lamp
         BackendAppStatusLampLabel     matlab.ui.control.Label
         VirtualListenerTextArea       matlab.ui.control.TextArea
@@ -28,26 +29,26 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
 
         fileReader % Audio file reader
 
-        % audio augmentation object
-        augmenter = audioDataAugmenter( ...
-            "AugmentationMode","sequential", ...
-            "AugmentationParameterSource",'specify',...
-            "NumAugmentations",1, ...
-            ...
-            "ApplyTimeStretch",false, ...
-            "SpeedupFactor", 0, ...
-            ...
-            "ApplyPitchShift",false, ...
-            "SemitoneShift",0, ...
-            ...
-            "ApplyVolumeControl",false, ...
-            "VolumeGain",0, ...
-            ...
-            "ApplyAddNoise",false, ...
-            "SNR",0,...
-            ...
-            "ApplyTimeShift",false, ...
-            "TimeShift", 0);
+        % % audio augmentation object
+        % augmenter = audioDataAugmenter( ...
+        %     "AugmentationMode","sequential", ...
+        %     "AugmentationParameterSource",'specify',...
+        %     "NumAugmentations",1, ...
+        %     ...
+        %     "ApplyTimeStretch",false, ...
+        %     "SpeedupFactor", 0, ...
+        %     ...
+        %     "ApplyPitchShift",false, ...
+        %     "SemitoneShift",0, ...
+        %     ...
+        %     "ApplyVolumeControl",false, ...
+        %     "VolumeGain",0, ...
+        %     ...
+        %     "ApplyAddNoise",false, ...
+        %     "SNR",0,...
+        %     ...
+        %     "ApplyTimeShift",false, ...
+        %     "TimeShift", 0);
 
         scopeVisualizeTime = timescope('TimeSpan',2, ...
             'YLimits',[-1,1], ...
@@ -55,8 +56,6 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
             "LayoutDimensions",[1 1]);
 
         peakMeter = audioLevelMeter() % Audio level meter object
-
-        fs % temporoary sampling rate
 
         reverbObject = reverberator % reverberator object
 
@@ -68,17 +67,18 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
 
         midiMsgBank  % midi message array
 
-        wvSynth = wavetableSynthesizer('SampleRate',44.1e3,'Amplitude',8) 
-
         startTime % App start time
 
         midiMap % a mapping of midi notes to keyboard values
 
         soundShareObj % create object to connect to Backend application
 
+        SoundSharePath
+
         audioSettingsApp
 
         audioAugmenter
+
        
     end
     
@@ -86,8 +86,8 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
         deviceWriter = audioDeviceWriter( ...
             'SampleRate',44100, ... %
             'SupportVariableSizeInput',true,'BufferSize',65536); % max buffer size 65536
-
-        deviceReader = audioDeviceReader('SampleRate',44100,'SamplesPerFrame',65536)
+        
+        deviceReader = audioDeviceReader('SampleRate', 44100,'SamplesPerFrame',65536);
     end
 
     
@@ -97,7 +97,7 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
         function [] = streamAudio(app)
 
             % set all audio variables as persistent variables
-            persistent signal blendAudio midiOut aug_signal
+            persistent signal blendAudio aug_signal input
 
             % stream audio from file
             
@@ -111,31 +111,49 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
                 playbackSwitchStatus = app.AudioPlaybackSwitch.Value;
 
                 signal = app.fileReader();
-
-                % augment audio
-                app.audioAugmenter, aug_signal = app.audioAugmenter.step(signal);
-
-                % get backend augmented audio and/or midi
                 try
-                    midiOut = app.soundShareObj.Value;
+                    signal = mean(signal, 2);
                 catch
-                    midiOut = 0;
+                    signal = zeros(app.deviceReader.SamplesPerFrame,1);
                 end
+
+                try
+                    input = app.deviceReader();
+                catch
+                    input = zeros(app.deviceReader.SamplesPerFrame,1);
+                end
+
+                blendAudio = signal + input;
+                
+                % augment audio
+                [app.audioAugmenter, aug_signal] = app.audioAugmenter.step(blendAudio(1:app.deviceReader.SamplesPerFrame));
+
+                blendAudio = blendAudio + aug_signal;
+           
 
                 % get bbox width from backend
                 try
-                    app.bboxWidth = app.soundShareObj.BBoxWidth;
+                    fid = fopen(app.SoundSharePath,'r');
+                    if fid > 0 
+                         temp = fread(fid,1, "double");
+                         fclose(fid);
+                         if ~isempty(temp)
+                             app.bboxWidth = temp;
+                         else
+                             app.bboxWidth = 0;
+                         end
+                    else
+                        app.bboxWidth = 0;
+                    end
                 catch
                     app.bboxWidth = 0;
                 end
-
-                blendAudio = signal + midiOut;
-
+                
                 % apply the delay based on the bbox width
                 if app.bboxWidth > 0.6 % if the bbox width is greater that 0.6, add the delay below
                     
                     % maximum length of the delay in samples, 2000 samples = 45ms at 44.1kHz
-                    maxDelaySamples = 2000;
+                    maxDelaySamples = 44100;
                     
                     % for the delay time to be smooth, we need to normalize
                     % the range. subtracting the min/max delay from the
@@ -144,15 +162,16 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
                     scaled = (app.bboxWidth - 0.6) / 0.4; % maps 0.6–1 → 0–1
                     
                     % convert to delay time in seconds using the actual fs
-                    maxDelaySec = maxDelaySamples / app.fs; % ~0.045 s at 44.1 kHz
+                    maxDelaySec = maxDelaySamples / app.deviceWriter.SampleRate; % ~0.045 s at 44.1 kHz
                     delaySec = maxDelaySec * scaled;
                     
                     % configure echo parameters
-                    app.delayObj.Delay = delaySec; % seconds
+                    app.delayObj.Delay = 1; % s4econds
                     app.delayObj.Gain = 1.0; % gain of delayed signal
-                    app.delayObj.FeedbackLevel = 0.0; % no feedback (simple echo)
+                    app.delayObj.FeedbackLevel = 0.4; % no feedback (simple echo)
                     app.delayObj.WetDryMix = 0.8; % how much delay is heard
-
+                    
+                    blendAudio = app.delayObj(blendAudio);
                 else 
                     % if the bbox is < 0.6 turn the delay off, essentially
                     % bypass the delay
@@ -161,16 +180,17 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
                    
                     % use the dry signal if bbox < 0.6 and ignore the above
                     % code
-                    outAudio = blendAudio;
 
                 end
+
+                outAudio = blendAudio;
 
                 % update virtual listener with new audio data
                 step(app.mirWiz,outAudio);
 
                 dropped = app.deviceWriter(outAudio);
                 app.SamplesdroppedframeEditField.UserData = double(dropped);
-                app.AudioMeter.Value = app.peakMeter(outAudio);
+                app.AudioMeter.Value = app.peakMeter([outAudio,outAudio]);
 
                 if double(dropped) ~= 0
                     app.SamplesdroppedframeEditField.Value = double(dropped);
@@ -182,6 +202,8 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
             release(app.fileReader)
             release(app.deviceWriter)
             release(app.scopeVisualizeTime)
+            release(app.deviceReader)  
+
 
             % stop timer
             stop(app.mirWizTimer);
@@ -193,7 +215,7 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
             % apply augmentation to streaming audio signal
 
             % Apply augmentation
-            transformed_signal = augment(app.augmenter,orig_signal,app.fs);
+            transformed_signal = augment(app.augmenter,orig_signal,app.deviceReader.SampleRate);
 
             if istable(transformed_signal)
                 transformed_signal = cell2mat(transformed_signal.Audio);
@@ -218,44 +240,32 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
 
             % send request for information from
             % virtual listener every 6 s
-            virtualListenerUpdatePeriod = 6; % seconds
+            % virtualListenerUpdatePeriod = 6; % seconds
 
-            if numel(app.mirWiz.roughness) >= virtualListenerUpdatePeriod
+            try
+                % print to GUI
+                formatSpec = ['Roughness = %g \n' ...
+                    'brightness = %g \n' ...
+                    'inharmonicity = %g\n' ];
 
-                try
-                    % print to GUI
-                    formatSpec = ['Roughness = %g \n' ...
-                        'brightness = %g bpm\n' ...
-                        'inharmonicity = %g\n' ];
+                A1 = app.mirWiz.roughness(end);
 
-                    A1 = app.mirWiz.roughness(end);
+                A2 = app.mirWiz.brightness(end);
 
-                    A2 = app.mirWiz.brightness(end);
+                A3 = app.mirWiz.inharmonicity(end);
+               
+                tempMirStruct = mirStruct("brightness", A2, ...
+                    "inharmonicity",A3, ...
+                    "roughness", A1);
 
-                    A3 = app.mirWiz.inharmonicity{end};
-                   
-                    tempMirStruct = mirStruct("brightness", A2, ...
-                        "inharmonicity",A3, ...
-                        "roughness", A1);
+                app.audioAugmenter.updateMIRParams(tempMirStruct);
+                str = sprintf(formatSpec,round(A1), ...
+                    round(A2), ...
+                    A3);
 
-                    % updates the MIR parameters of our MusicAugmenter
-                    % using the values from the mirWiz
-                    app.audioAugmenter = app.audioAugmenter.updateMIRParams(tempMirStruct);
+                app.VirtualListenerTextArea.Value = str;
 
-                    str = sprintf(formatSpec,round(A1), ...
-                        round(A2), ...
-                        A3);
-
-                    app.VirtualListenerTextArea.Value = str;
-
-                catch
-
-                end
-
-            else
-
-                app.VirtualListenerTextArea.Value = ...
-                    ['Listening. Please wait. . . ',char(datetime("now"))];
+            catch
 
             end
 
@@ -265,13 +275,21 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
             drawnow
 
         end
+        
+        function findBackend(app)
+            % check that Backend instance is running
+           if exist('SoundApp_Shared.bin','file')
+               % instance is running
+               app.BackendAppStatusLamp.Color = 'g';
+               app.SoundSharePath = 'SoundApp_Shared.bin';
 
-        function updatebboxWidth(app, widthValue)
-            % width value must be on the scale of 0 to 1
-            app.bboxWidth = max(0, min(1, widthValue));
-
+           else
+               % instance is not running
+               app.BackendAppStatusLamp.Color = 'r';
+               app.soundShareObj = 0;
+           end
+            
         end
-
     end
 
 
@@ -317,32 +335,11 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
 
             app.SamplesdroppedframeEditField.UserData = 0; % set default value
 
-            % set audio augmenter paramters
-            % define augmenter parameters for ShiftPitch
-            setAugmenterParams(app.augmenter,'shiftPitch','LockPhase',true, ...
-                'PreserveFormants',true);
-
-            % define augmenter parameters for StretchAudio
-            setAugmenterParams(app.augmenter,'stretchAudio','LockPhase',true);
-
             % log app start time
             app.startTime = datetime("now");
 
-            % setup midiMap
-            app.midiMap = [[113 50 119 51 101 114 53 116 54 121 55 117 105]' ...
-                (60:72)'];
-
            % check that Backend instance is running
-           if exist('SoundApp_BakendDAT.mat','file')
-               % instance is running
-               app.BackendAppStatusLamp.Color = 'g';
-               app.soundShareObj = matfile('SoundApp_BakendDAT.mat');
-               
-           else
-               % instance is not running
-               app.BackendAppStatusLamp.Color = 'r';
-               app.soundShareObj = 0;
-           end
+           findBackend(app);
 
         end
 
@@ -354,49 +351,22 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
 
                 % User input: select audio file
                 [filename,pathname] = uigetfile('*.*','Select Audio File');
-                [fileAudio,app.fs] = audioread(fullfile(pathname,filename));
-
-                % set frame length equal to 2x synthesizer
-                frameLength = app.wvSynth.SamplesPerFrame * 10;
-                app.wvSynth.SamplesPerFrame = frameLength;
-
+                [fileAudio,app.deviceReader.SampleRate] = audioread(fullfile(pathname,filename));
+                app.deviceWriter.SampleRate = app.deviceReader.SampleRate;
+             
+                
                 % initialize audio file reader
                 app.fileReader = dsp.AudioFileReader( ...
                     fullfile(pathname,filename), ...
-                    'SamplesPerFrame',frameLength);
-
-                % Add reverb as parameter to audio data augmenter
-                if sum(contains(cellstr(properties(app.augmenter)), ...
-                        'ApplyReverb'))==1
-
-                    removeAugmentationMethod(app.augmenter,'Reverb')
-
-                end
-
-                % create reverberator system object
-                algorithmName = 'Reverb';
-                algorithmHandle = @(x,preDelay,wetDryMix)reverbApply(app,x,preDelay,wetDryMix,app.fs);
-                parameters = {'PreDelay','WetDryMix'};
-                parameterRanges = {[0,1],[0,1]};
-                parameterValues = {0,0};
-
-                addAugmentationMethod(app.augmenter,algorithmName,algorithmHandle, ...
-                    'AugmentationParameter',parameters, ...
-                    'ParameterRange',parameterRanges, ...
-                    'ParameterValue',parameterValues)
-                app.augmenter.ApplyReverb = false;
+                    'SamplesPerFrame',app.deviceReader.SamplesPerFrame);
 
                 % update timescope parameters
                 app.scopeVisualizeTime.SampleRate = app.fileReader.SampleRate;
                 app.scopeVisualizeTime.BufferLength = ...
                     app.fileReader.SampleRate*2*2;
-
-                % update sample rate
-                app.deviceWriter.SampleRate = app.fs;
-                app.deviceWriter.BufferSize = 1024;
-
+                
                 % initialize audioAugmenter
-                app.audioAugmenter = MusicAugmenter(fileAudio(1:app.fs*3), app.fs, 10, app.deviceWriter.BufferSize);
+                app.audioAugmenter = MusicAugmenter(fileAudio(1:app.deviceReader.SampleRate*3), app.deviceReader.SampleRate, 10, app.deviceReader.SamplesPerFrame);
 
                 % % set sample rate for delay/echo effect
                 % setSampleRate(app.delayObj, app.fs);
@@ -410,9 +380,6 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
 
                 % update access to playback switch
                 app.AudioPlaybackSwitch.Enable = true;
-
-                % update audio oscillator samples per frame
-                app.wvSynth.SamplesPerFrame = frameLength;
 
             catch ME
 
@@ -472,6 +439,11 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
         function AudioSettingsMenuSelected(app, event)
             app.audioSettingsApp = audiosettings(app);
         end
+
+        % Menu selected function: FindBackend
+        function FindBackendMenuSelected(app, event)
+            findBackend(app);
+        end
     end
 
     % Component initialization
@@ -499,6 +471,11 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
             app.AudioSettingsMenu = uimenu(app.Menu);
             app.AudioSettingsMenu.MenuSelectedFcn = createCallbackFcn(app, @AudioSettingsMenuSelected, true);
             app.AudioSettingsMenu.Text = 'Audio Settings';
+
+            % Create FindBackend
+            app.FindBackend = uimenu(app.Menu);
+            app.FindBackend.MenuSelectedFcn = createCallbackFcn(app, @FindBackendMenuSelected, true);
+            app.FindBackend.Text = 'Find Backend';
 
             % Create MUST5510AudioTestBenchLabel
             app.MUST5510AudioTestBenchLabel = uilabel(app.UIFigure);
@@ -582,7 +559,7 @@ classdef MUST5510_AudioTestBenchFINAL_exported < matlab.apps.AppBase
     methods (Access = public)
 
         % Construct app
-        function app = MUST5510_AudioTestBenchFINAL_exported
+        function app = MUST5510_AudioTestBenchFINAL_FR_exported
 
             runningApp = getRunningApp(app);
 
